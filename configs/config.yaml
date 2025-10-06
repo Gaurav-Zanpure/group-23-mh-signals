@@ -1,0 +1,3 @@
+paths:
+  raw_data: "path/to/raw_data.csv"
+  tagged_data: "data/raw/mental_health_signal_detector_data.csv"

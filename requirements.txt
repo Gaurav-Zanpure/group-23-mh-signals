@@ -1,0 +1,10 @@
+pandas
+pyyaml
+scikit-learn
+numpy
+tqdm
+transformers
+torch
+sentence-transformers
+peft
+evaluate
