@@ -1,4 +1,3 @@
-```markdown
 # MH-SIGNALS: Mental Health Signal Detector
 
 **MH-SIGNALS** is a modular framework for detecting mental-health signals such as **Intent** and **Concern Level** in online support-group posts.  
@@ -9,20 +8,18 @@ It benchmarks multiple modeling strategies — **MiniLM + Logistic Regression**,
 ## Repository Structure
 
 ```
-
 configs/              # YAML configs (data.yaml + per-model configs)
 data/
-raw/                # raw CSV files
-processed/          # cleaned + tagged datasets
-splits/             # train/val/test CSVs
+  raw/                # raw CSV files
+  processed/          # cleaned + tagged datasets
+  splits/             # train/val/test CSVs
 models/               # training scripts per model
 results/
-runs/               # checkpoints, logs, predictions
-tables/             # summary CSVs
+  runs/               # checkpoints, logs, predictions
+  tables/             # summary CSVs
 scripts/              # tagging + summaries
 utils/                # helper functions
-
-````
+```
 
 ---
 
@@ -34,7 +31,7 @@ Create and activate a virtual environment:
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-````
+```
 
 or using **conda**:
 
@@ -87,11 +84,11 @@ python scripts/tag_summary.py
 
 ## Pipeline Overview
 
-1. **Input:** Raw CSV → cleaned and tagged posts
-2. **Splitting:** Fixed train/val/test CSVs in `data/splits/`
-3. **Training:** Model configuration read from YAML
-4. **Evaluation:** Metrics and predictions generated automatically
-5. **Results:** Saved to `results/runs/<run_id>/` and summarized in `results/tables/`
+1. **Input:** Raw CSV → cleaned and tagged posts  
+2. **Splitting:** Fixed train/val/test CSVs in `data/splits/`  
+3. **Training:** Model configuration read from YAML  
+4. **Evaluation:** Metrics and predictions generated automatically  
+5. **Results:** Saved to `results/runs/<run_id>/` and summarized in `results/tables/`  
 
 All paths, splits, and outputs are handled through YAML — no manual edits required.
 
@@ -173,20 +170,5 @@ Each run is self-contained, ensuring reproducibility.
 * Results automatically save under `results/runs/`.
 
 ---
-
-## Maintainers
-
-**Gaurav Zanpure**
-University of Southern California
-[gzanpure@usc.edu](mailto:gzanpure@usc.edu)
-
-**Team Members:**
-Shreyansh Kabra · Pragya Dhawan · Suyash Roy · Vanshika Wadhwa · Punith Basavaraj
-
-```
-
----
-
-Would you like me to append a short **Quick Start** section at the end (3 steps: prepare → train → view results)?  
-It makes the README even easier for first-time contributors.
-```
+**Team Members:**  
+Gaurav Zanpure · Shreyansh Kabra · Pragya Dhawan · Suyash Roy · Vanshika Wadhwa · Punith Basavaraj
