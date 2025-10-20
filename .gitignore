@@ -1,0 +1,29 @@
+.venv/
+venv/
+env/
+ENV/
+*.pyvenv.cfg
+
+.DS_Store
+Thumbs.db
+.ipynb_checkpoints/
+.vscode/
+.idea/
+
+*.log
+*.tmp
+*.swp
+*.bak
+
+runs/
+wandb/
+# results/runs/
+# models/checkpoints/
+output/
+cache/
+datasets_cache/
+hf_cache/
+*.h5
+*.ckpt
+
+models/__pycache__/
