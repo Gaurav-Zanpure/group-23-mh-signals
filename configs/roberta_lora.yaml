@@ -8,6 +8,7 @@ data:
 model:
   name: "roberta-large"
   max_length: 512
+  num_labels: 9
 
 # LoRA (Low-Rank Adaptation) configuration
 lora:
@@ -31,7 +32,7 @@ training:
   # Decision threshold for converting probabilities to binary predictions
   threshold: 0.25
   # Number of training epochs
-  epochs: 3
+  epochs: 8
   # Batch size for training
   train_batch_size: 8
   # Batch size for evaluation

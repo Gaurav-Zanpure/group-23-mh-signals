@@ -15,10 +15,9 @@ Thumbs.db
 *.swp
 *.bak
 
-runs/
 wandb/
 # results/runs/
-# models/checkpoints/
+models/checkpoints/
 output/
 cache/
 datasets_cache/

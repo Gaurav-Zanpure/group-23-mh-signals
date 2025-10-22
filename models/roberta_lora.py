@@ -26,7 +26,7 @@ from transformers import (
     TrainingArguments,
 )
 
-from models.helper import (
+from .helper import (
     CANONICAL,
     CANON_KEYS,
     set_seed,
