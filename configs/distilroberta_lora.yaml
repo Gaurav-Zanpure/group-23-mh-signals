@@ -13,9 +13,9 @@ model:
 # LoRA (Low-Rank Adaptation) configuration
 lora:
   # The dimension of the low-rank matrices
-  r: 4
+  r: 64
   # The alpha parameter for LoRA scaling
-  lora_alpha: 8
+  lora_alpha: 128
   # The dropout probability for LoRA layers
   lora_dropout: 0.1
   # Modules to apply LoRA to. For DistilRoBERTa, the transformer block layers
@@ -23,9 +23,24 @@ lora:
   target_modules:
     # - "q_lin"
     # - "v_lin"
-    - 'roberta.encoder.layer.0.attention.self.query'
-    - 'roberta.encoder.layer.0.attention.self.key'
-    - 'roberta.encoder.layer.0.attention.self.value' 
+    - "roberta.encoder.layer.0.attention.self.query"
+    - "roberta.encoder.layer.0.attention.self.key"
+    - "roberta.encoder.layer.0.attention.self.value"
+    - "roberta.encoder.layer.1.attention.self.query"
+    - "roberta.encoder.layer.1.attention.self.key"
+    - "roberta.encoder.layer.1.attention.self.value"
+    - "roberta.encoder.layer.2.attention.self.query"
+    - "roberta.encoder.layer.2.attention.self.key"
+    - "roberta.encoder.layer.2.attention.self.value"
+    - "roberta.encoder.layer.3.attention.self.query"
+    - "roberta.encoder.layer.3.attention.self.key"
+    - "roberta.encoder.layer.3.attention.self.value"
+    - "roberta.encoder.layer.4.attention.self.query"
+    - "roberta.encoder.layer.4.attention.self.key"
+    - "roberta.encoder.layer.4.attention.self.value"
+    - "roberta.encoder.layer.5.attention.self.query"
+    - "roberta.encoder.layer.5.attention.self.key"
+    - "roberta.encoder.layer.5.attention.self.value"
 
 # Training hyperparameters
 training:
@@ -34,13 +49,13 @@ training:
   # Decision threshold for converting probabilities to binary predictions
   threshold: 0.25
   # Number of training epochs
-  epochs: 4
+  epochs: 10
   # Batch size for training
-  train_batch_size: 32
+  train_batch_size: 8
   # Batch size for evaluation
   eval_batch_size: 32
   # Learning rate for the AdamW optimizer
-  learning_rate: 3e-5
+  learning_rate: 1e-4
   # Weight decay for regularization
   weight_decay: 0.01
   # Directory where models and checkpoints will be saved
