@@ -1,0 +1,52 @@
+# configs/distilroberta_lora.yaml
+
+# Path to the shared data configuration
+data:
+  data_cfg: configs/data.yaml
+
+# Model configuration
+model:
+  name: "distilroberta-base"
+  max_length: 512
+  num_labels: 9
+
+# LoRA (Low-Rank Adaptation) configuration
+lora:
+  # The dimension of the low-rank matrices
+  r: 4
+  # The alpha parameter for LoRA scaling
+  lora_alpha: 8
+  # The dropout probability for LoRA layers
+  lora_dropout: 0.1
+  # Modules to apply LoRA to. For DistilRoBERTa, the transformer block layers
+  # commonly include 'q_lin' and 'v_lin' instead of 'query' and 'value'.
+  target_modules:
+    # - "q_lin"
+    # - "v_lin"
+    - 'roberta.encoder.layer.0.attention.self.query'
+    - 'roberta.encoder.layer.0.attention.self.key'
+    - 'roberta.encoder.layer.0.attention.self.value' 
+
+# Training hyperparameters
+training:
+  # Random seed for reproducibility
+  seed: 42
+  # Decision threshold for converting probabilities to binary predictions
+  threshold: 0.25
+  # Number of training epochs
+  epochs: 4
+  # Batch size for training
+  train_batch_size: 32
+  # Batch size for evaluation
+  eval_batch_size: 32
+  # Learning rate for the AdamW optimizer
+  learning_rate: 3e-5
+  # Weight decay for regularization
+  weight_decay: 0.01
+  # Directory where models and checkpoints will be saved
+  output_dir: "models/checkpoints/"
+
+# Logging configuration
+logging:
+  run_name: "distilroberta_base_lora"
+  save_dir: "results/runs"
