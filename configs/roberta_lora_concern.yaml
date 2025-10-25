@@ -1,0 +1,36 @@
+# configs/roberta_lora_concern.yaml
+
+# Path to the shared data configuration
+data:
+  data_cfg: configs/data.yaml
+
+# Model configuration
+model:
+  name: "roberta-large"
+  max_length: 512
+
+# LoRA (Low-Rank Adaptation) configuration
+lora:
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.1
+  target_modules:
+    - "query"
+    - "value"
+    - "key"
+    - "dense"
+
+# Training hyperparameters
+training:
+  seed: 42
+  epochs: 8
+  train_batch_size: 8
+  eval_batch_size: 32
+  learning_rate: 1e-4
+  weight_decay: 0.01
+  output_dir: "models/checkpoints/"
+
+# Logging configuration
+logging:
+  run_name: "roberta_lora_concern" 
+  save_dir: "results/runs"

@@ -1,0 +1,27 @@
+data:
+  data_cfg: configs/data.yaml
+logging:
+  run_name: roberta_base_lora
+  save_dir: results/runs
+lora:
+  lora_alpha: 32
+  lora_dropout: 0.1
+  r: 16
+  target_modules:
+  - query
+  - value
+  - key
+  - dense
+model:
+  max_length: 512
+  name: roberta-large
+  num_labels: 9
+training:
+  epochs: 8
+  eval_batch_size: 32
+  learning_rate: 1e-4
+  output_dir: models/checkpoints/
+  seed: 42
+  threshold: 0.25
+  train_batch_size: 8
+  weight_decay: 0.01

@@ -113,7 +113,8 @@ python models/distilroberta_lora.py --config configs/distilroberta_lora.yaml
 ### RoBERTa-base + LoRA (Strong)
 
 ```bash
-python models/roberta_lora.py --config configs/roberta_lora.yaml
+# python models/roberta_lora.py --config configs/roberta_lora.yaml
+python -m models.roberta_lora --config configs/roberta_lora.yaml
 ```
 
 Each script automatically:

@@ -1,8 +1,5 @@
 import argparse
 import json
-import math
-import random
-import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -10,13 +7,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
-from torch.nn import BCEWithLogitsLoss
+from torch.nn import CrossEntropyLoss
 import yaml
 from datasets import Dataset
 from peft import get_peft_model, LoraConfig
 from packaging import version
-from sklearn.metrics import f1_score, average_precision_score
-from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.metrics import f1_score, accuracy_score, confusion_matrix
 import transformers
 from transformers import (
     AutoModelForSequenceClassification,
@@ -25,77 +21,91 @@ from transformers import (
     Trainer,
     TrainingArguments,
 )
-
 from .helper import (
-    CANONICAL,
-    CANON_KEYS,
     set_seed,
     load_yaml,
     ensure_dir,
-    read_split_csv,
-    prob_to_tags,
+    read_concern_split_csv
 )
+
+# --- Custom Trainer for Weighted Loss ---
 
 class WeightedTrainer(Trainer):
     def __init__(self, class_weights=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.class_weights = class_weights.to(self.model.device)
+        if class_weights is not None:
+            self.class_weights = class_weights.to(self.model.device)
+        else:
+            self.class_weights = None
 
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         labels = inputs.pop("labels")
         outputs = model(**inputs)
         logits = outputs.logits
 
-        # Multi-label BCE loss with class weights
-        loss_fct = BCEWithLogitsLoss(pos_weight=self.class_weights)
-        loss = loss_fct(logits, labels)
+        # Single-label Cross-Entropy loss with class weights
+        loss_fct = CrossEntropyLoss(weight=self.class_weights)
+        loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
 
         return (loss, outputs) if return_outputs else loss
-    
+
 # --- Main Training and Evaluation Logic ---
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True, help="Path to the model config YAML.")
     args = parser.parse_args()
 
-    # Load Configs and Set Up Environment
+    # 1. Load Configs and Set Up Environment
     cfg = load_yaml(args.config)
     data_cfg = load_yaml(cfg["data"]["data_cfg"])
     train_cfg = cfg["training"]
     model_cfg = cfg["model"]
     lora_cfg = cfg.get("lora", {})
 
-    set_seed(train_cfg.get("seed", 42))
+    set_seed(train_cfg.get("seed", 42)) # Using imported helper
 
     run_name = cfg["logging"]["run_name"]
     save_root = Path(cfg["logging"]["save_dir"])
     save_dir = save_root / f"{run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    ensure_dir(save_dir)
-    ensure_dir(save_dir / "tables")
+    ensure_dir(save_dir) # Using imported helper
+    ensure_dir(save_dir / "tables") # Using imported helper
 
-    # Load and Prepare Data
+    # 2. Load and Prepare Data
     splits_dir = Path(data_cfg["paths"]["splits_dir"])
-    train_df = read_split_csv(splits_dir / "train.csv")
-    val_df = read_split_csv(splits_dir / "val.csv")
-    test_df = read_split_csv(splits_dir / "test.csv")
+    # Using the imported task-specific CSV reader
+    train_df = read_concern_split_csv(splits_dir / "train.csv")
+    val_df = read_concern_split_csv(splits_dir / "val.csv")
+    test_df = read_concern_split_csv(splits_dir / "test.csv")
 
-    mlb = MultiLabelBinarizer(classes=sorted(CANON_KEYS))
-    Y_train = mlb.fit_transform(train_df["TagsList"])
-    Y_val = mlb.transform(val_df["TagsList"])
-    Y_test = mlb.transform(test_df["TagsList"])
-    label_names = list(mlb.classes_)
+    # Use the label map from data.yaml
+    label_map = data_cfg["labels"]["concern_map"]
+    # Get label names in order of their index (0, 1, 2)
+    label_names = sorted(label_map, key=label_map.get)
+    
+    Y_train = train_df["Concern_Level"].map(label_map).values
+    Y_val = val_df["Concern_Level"].map(label_map).values
+    Y_test = test_df["Concern_Level"].map(label_map).values
 
-    class_counts = Y_train.sum(axis=0)
-    class_weights = 1.0 / (class_counts + 1e-5) 
-    class_weights = class_weights / class_weights.sum() * len(class_counts)
+    num_labels = len(label_names)
+    print(f"Found {num_labels} labels: {label_names}")
+
+    # Calculate class weights for single-label classification
+    class_counts = np.bincount(Y_train, minlength=num_labels)
+    print(f"Class counts (Train): {list(zip(label_names, class_counts))}")
+    
+    class_weights = 1.0 / (class_counts + 1e-5)  # inverse frequency
+    class_weights = class_weights / class_weights.sum() * num_labels  # normalize
     class_weights = torch.tensor(class_weights, dtype=torch.float32)
+    print(f"Applying class weights: {list(zip(label_names, class_weights.numpy()))}")
 
-    # Tokenize Data for Hugging Face
+
+    # 3. Tokenize Data for Hugging Face
     tokenizer = AutoTokenizer.from_pretrained(model_cfg["name"])
 
     def create_dataset(df, y):
         ds = Dataset.from_pandas(df)
-        ds = ds.add_column("labels", [row.astype(np.float32) for row in y])
+        # For single-label, labels are just the integer indices
+        ds = ds.add_column("labels", y)
         return ds
 
     def tokenize(batch):
@@ -109,11 +119,11 @@ def main():
     val_ds = create_dataset(val_df, Y_val).map(tokenize, batched=True)
     test_ds = create_dataset(test_df, Y_test).map(tokenize, batched=True)
 
-    # Configure Model, LoRA, and Metrics
+    # 4. Configure Model, LoRA, and Metrics
     model = AutoModelForSequenceClassification.from_pretrained(
         model_cfg["name"],
-        num_labels=len(label_names),
-        problem_type="multi_label_classification",
+        num_labels=num_labels,
+        problem_type="single_label_classification", # Changed
     )
 
     peft_config = LoraConfig(**lora_cfg)
@@ -122,20 +132,17 @@ def main():
 
     def compute_metrics(p: EvalPrediction):
         logits, labels = p.predictions, p.label_ids
-        probs = 1 / (1 + np.exp(-logits))
-        preds = (probs > train_cfg["threshold"]).astype(int)
+        preds = np.argmax(logits, axis=1) # Use argmax for single-label
         
         f1_macro = f1_score(labels, preds, average="macro", zero_division=0)
-        f1_micro = f1_score(labels, preds, average="micro", zero_division=0)
-
-        pr_auc_macro = average_precision_score(labels, probs, average="macro")
+        acc = accuracy_score(labels, preds)
         
-        return {"macro_f1": f1_macro, 
-                "micro_f1": f1_micro, 
-                "pr_auc_macro": pr_auc_macro
-                }
+        return {
+            "accuracy": acc,
+            "macro_f1": f1_macro,
+        }
 
-    # Set Up and Run Trainer
+    # 5. Set Up and Run Trainer
     args = {
         "output_dir":train_cfg["output_dir"],
         "learning_rate":float(train_cfg["learning_rate"]),
@@ -146,15 +153,15 @@ def main():
         "eval_strategy":"epoch",
         "save_strategy":"epoch",
         "load_best_model_at_end":True,
-        "metric_for_best_model":"pr_auc_macro",
+        "metric_for_best_model":"macro_f1", # Changed from pr_auc_macro
         "push_to_hub":False,
-        # Mixed
         "warmup_steps": 500,
         "greater_is_better": True,
         "lr_scheduler_type": "cosine",
         "gradient_accumulation_steps": 4,
         "bf16":True,
     }
+    # Handle transformers version compatibility for eval_strategy
     if version.parse(transformers.__version__) >= version.parse("4.56.0"):
         args["eval_strategy"] = "epoch"
     else:
@@ -162,7 +169,7 @@ def main():
     
     training_args = TrainingArguments(**args)
 
-    trainer = WeightedTrainer(
+    trainer = WeightedTrainer( # Using our modified trainer
         model=model,
         args=training_args,
         train_dataset=train_ds,
@@ -177,68 +184,54 @@ def main():
     train_time = time.time() - t0
     print("Training completed.")
 
-    # Evaluate and Save Results
+    # 6. Evaluate and Save Results
     print("Evaluating model...")
     val_preds = trainer.predict(val_ds)
     test_preds = trainer.predict(test_ds)
     
-    P_val = 1 / (1 + np.exp(-val_preds.predictions)) # Sigmoid
-    P_test = 1 / (1 + np.exp(-test_preds.predictions)) # Sigmoid
+    # Get predicted class index by argmax
+    preds_val_idx = np.argmax(val_preds.predictions, axis=1)
+    preds_test_idx = np.argmax(test_preds.predictions, axis=1)
+
+    # Map indices back to string labels
+    preds_val_labels = [label_names[i] for i in preds_val_idx]
+    preds_test_labels = [label_names[i] for i in preds_test_idx]
+    true_val_labels = [label_names[i] for i in Y_val]
+    true_test_labels = [label_names[i] for i in Y_test]
 
     preds_val_df = pd.DataFrame({
         "Post": val_df["Post"],
-        "True": [", ".join(t) for t in val_df["TagsList"]],
-        "Pred": [prob_to_tags(p, train_cfg["threshold"], label_names) for p in P_val],
+        "True": true_val_labels,
+        "Pred": preds_val_labels,
     })
     preds_test_df = pd.DataFrame({
         "Post": test_df["Post"],
-        "True": [", ".join(t) for t in test_df["TagsList"]],
-        "Pred": [prob_to_tags(p, train_cfg["threshold"], label_names) for p in P_test],
+        "True": true_test_labels,
+        "Pred": preds_test_labels,
     })
 
-    # Find Optimal Threshold and Re-evaluate ---
-    print("\n Finding optimal threshold on validation set...")
-    best_threshold = 0.0
-    best_f1 = 0.0
+    # --- 7. Save Final Metrics and Configs ---
     
-    # Iterate over a range of potential thresholds
-    for threshold in np.arange(0.05, 0.95, 0.01):
-        preds = (P_val > threshold).astype(int)
-        f1 = f1_score(Y_val, preds, average="macro", zero_division=0)
-        if f1 > best_f1:
-            best_f1 = f1
-            best_threshold = threshold
-
-    print(f"Optimal threshold found: {best_threshold:.2f}")
-    print(f"Best Macro F1 on Val set at this threshold: {best_f1:.4f}")
-
-    # Update prediction dataframes with the optimized predictions
-    preds_val_df["Pred"] = [prob_to_tags(p, best_threshold, label_names) for p in P_val]
-    preds_test_df["Pred"] = [prob_to_tags(p, best_threshold, label_names) for p in P_test]
-
-    # BEST threshold to get the TRUE test metrics
-    print(f"\nRe-evaluating TEST set with new threshold of {best_threshold:.2f}...")
-    preds_test_optimized = (P_test > best_threshold).astype(int)
-    f1_macro_test_optimized = f1_score(Y_test, preds_test_optimized, average="macro", zero_division=0)
-    f1_micro_test_optimized = f1_score(Y_test, preds_test_optimized, average="micro", zero_division=0)
-
-    optimized_test_metrics = {
-        "test_macro_f1": f1_macro_test_optimized,
-        "test_micro_f1": f1_micro_test_optimized,
-    }
+    # Get metrics from the trainer.predict() call
+    val_metrics = val_preds.metrics
+    test_metrics = test_preds.metrics
+    
+    # Add confusion matrix to test metrics
+    cm_test = confusion_matrix(Y_test, preds_test_idx).tolist()
+    test_metrics["confusion_matrix"] = cm_test
+    test_metrics["label_order"] = label_names
 
     preds_val_df.to_csv(save_dir / "tables" / "val_predictions.csv", index=False)
     preds_test_df.to_csv(save_dir / "tables" / "test_predictions.csv", index=False)
 
-    with open(save_dir / "metrics_val_original.json", "w") as f: json.dump(val_preds.metrics, f, indent=2)
-    # Save our metrics
-    with open(save_dir / "metrics_test_optimized.json", "w") as f: json.dump(optimized_test_metrics, f, indent=2)
+    with open(save_dir / "metrics_val.json", "w") as f: json.dump(val_metrics, f, indent=2)
+    with open(save_dir / "metrics_test.json", "w") as f: json.dump(test_metrics, f, indent=2)
     with open(save_dir / "label_names.json", "w") as f: json.dump(label_names, f, indent=2)
     with open(save_dir / "used_config.yaml", "w") as f: yaml.safe_dump(cfg, f)
     with open(save_dir / "data_config.yaml", "w") as f: yaml.safe_dump(data_cfg, f)
 
     print(f"\n[DONE] Saved run to: {save_dir}")
-    print(f"Optimized TEST Metrics (at threshold={best_threshold:.2f}) -> {json.dumps(optimized_test_metrics, indent=2)}")
+    print(f"Test Metrics -> {json.dumps(test_metrics, indent=2)}")
     print(f"Train time (s): {train_time:.2f}")
 
 if __name__ == "__main__":
