@@ -92,3 +92,27 @@ def prob_to_tags(prob_row, threshold, names):
     if not idx:
         idx = [int(np.argmax(prob_row))]
     return ", ".join([names[i] for i in idx])
+
+def _normalize_concern_level(x: str) -> str | None:
+    if not isinstance(x, str):
+        return None
+    t = x.strip().lower()
+    t = re.sub(r"[.\s]+$", "", t)
+    if t in {"low", "medium", "high"}:
+        return t
+    if t in {"med", "mid"}:
+        return "medium"
+    return None
+
+def read_concern_split_csv(p: Path):
+    df = pd.read_csv(p)
+    if "Post" not in df.columns and "Text" in df.columns:
+        df = df.rename(columns={"Text": "Post"})
+    if "Post" not in df.columns:
+        raise ValueError(f"'Post' column missing in {p}")
+    if "Concern_Level" not in df.columns:
+        raise ValueError(f"'Concern_Level' column missing in {p}")
+    df["Post"] = df["Post"].fillna("").astype(str)
+    df["Concern_Level"] = df["Concern_Level"].apply(_normalize_concern_level)
+    df = df.dropna(subset=["Concern_Level"]).reset_index(drop=True)
+    return df[["Post", "Concern_Level"]]
