@@ -12,14 +12,9 @@ model:
 
 # LoRA (Low-Rank Adaptation) configuration
 lora:
-  # The dimension of the low-rank matrices
   r: 64
-  # The alpha parameter for LoRA scaling
   lora_alpha: 128
-  # The dropout probability for LoRA layers
   lora_dropout: 0.1
-  # Modules to apply LoRA to. For DistilRoBERTa, the transformer block layers
-  # commonly include 'q_lin' and 'v_lin' instead of 'query' and 'value'.
   target_modules:
     # - "q_lin"
     # - "v_lin"
@@ -44,19 +39,12 @@ lora:
 
 # Training hyperparameters
 training:
-  # Random seed for reproducibility
   seed: 42
-  # Number of training epochs
   epochs: 10
-  # Batch size for training
   train_batch_size: 8
-  # Batch size for evaluation
   eval_batch_size: 32
-  # Learning rate for the AdamW optimizer
   learning_rate: 1e-4
-  # Weight decay for regularization
   weight_decay: 0.01
-  # Directory where models and checkpoints will be saved
   output_dir: "models/checkpoints/"
 
 # Logging configuration
