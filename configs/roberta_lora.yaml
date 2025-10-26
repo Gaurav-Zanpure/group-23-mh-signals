@@ -1,0 +1,49 @@
+# configs/roberta_lora.yaml
+
+# Path to the shared data configuration
+data:
+  data_cfg: configs/data.yaml
+
+# Model configuration
+model:
+  name: "roberta-large"
+  max_length: 512
+  num_labels: 9
+
+# LoRA (Low-Rank Adaptation) configuration
+lora:
+  # The dimension of the low-rank matrices
+  r: 16
+  # The alpha parameter for LoRA scaling
+  lora_alpha: 32
+  # The dropout probability for LoRA layers
+  lora_dropout: 0.1
+  # Modules to apply LoRA to. For RoBERTa, 'query' and 'value' are common choices.
+  target_modules:
+    - "query"
+    - "value"
+    - "key"
+    - "dense"
+
+# Training hyperparameters
+training:
+  # Random seed for reproducibility
+  seed: 42
+  # Decision threshold for converting probabilities to binary predictions
+  threshold: 0.25
+  # Number of training epochs
+  epochs: 8
+  # Batch size for training
+  train_batch_size: 8
+  # Batch size for evaluation
+  eval_batch_size: 32
+  # Learning rate for the AdamW optimizer
+  learning_rate: 1e-4
+  # Weight decay for regularization
+  weight_decay: 0.01
+  output_dir: "models/checkpoints/"
+
+# Logging configuration
+logging:
+  run_name: "roberta_base_lora"
+  save_dir: "results/runs"

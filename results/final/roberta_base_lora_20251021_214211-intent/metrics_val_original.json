@@ -1,0 +1,9 @@
+{
+  "test_loss": 0.2020234763622284,
+  "test_macro_f1": 0.7271723572559332,
+  "test_micro_f1": 0.7246271371407784,
+  "test_pr_auc_macro": 0.7903171011756698,
+  "test_runtime": 47.0341,
+  "test_samples_per_second": 16.839,
+  "test_steps_per_second": 0.532
+}

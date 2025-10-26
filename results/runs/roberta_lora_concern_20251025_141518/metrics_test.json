@@ -1,0 +1,30 @@
+{
+  "test_loss": 0.5477561354637146,
+  "test_accuracy": 0.7487373737373737,
+  "test_macro_f1": 0.7610196674628874,
+  "test_runtime": 5.1698,
+  "test_samples_per_second": 153.196,
+  "test_steps_per_second": 4.836,
+  "confusion_matrix": [
+    [
+      222,
+      63,
+      8
+    ],
+    [
+      88,
+      269,
+      19
+    ],
+    [
+      4,
+      17,
+      102
+    ]
+  ],
+  "label_order": [
+    "low",
+    "medium",
+    "high"
+  ]
+}
