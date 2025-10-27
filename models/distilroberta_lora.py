@@ -18,20 +18,11 @@ from transformers import (
     AutoModelForSequenceClassification,
     Trainer,
     TrainingArguments,
-    # DataCollatorWithPadding,
     EvalPrediction,
 )
 from peft import LoraConfig, get_peft_model
 from datasets import Dataset
-# from .helper import (
-#     CANON_KEYS,
-#     set_seed,
-#     load_yaml,
-#     ensure_dir,
-#     read_split_csv,
-#     prob_to_tags,
-# )
-from .helper_distilroberta import (
+from .helper import (
     CANON_KEYS,
     set_seed,
     load_yaml,
@@ -39,6 +30,14 @@ from .helper_distilroberta import (
     read_split_csv,
     prob_to_tags,
 )
+# from .helper_distilroberta import (
+#     CANON_KEYS,
+#     set_seed,
+#     load_yaml,
+#     ensure_dir,
+#     read_split_csv,
+#     prob_to_tags,
+# )
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -287,16 +286,6 @@ def main(args):
     print(f"\n[DONE] Saved run to: {save_dir}")
     print(f"Optimized TEST Metrics (at threshold={best_threshold:.2f}) -> {json.dumps(optimized_test_metrics, indent=2)}")
     print(f"Train time (s): {time_elapsed:.2f}")
-
-    # # Save model and metrics
-    # logger.info("Saving model and metrics...")
-    # trainer.save_model(base_output_dir)
-
-    # import json
-
-    # metrics_path = os.path.join(base_table_dir, "metrics.json")
-    # with open(metrics_path, "w") as f:
-    #     json.dump(metrics, f, indent=4)
 
     logger.info(f"Training complete. Metrics saved to {save_dir}")
 
