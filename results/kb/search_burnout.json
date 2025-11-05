@@ -1,0 +1,54 @@
+{
+  "query": "burnout at work, exhausted every day",
+  "filters": {
+    "intent": null,
+    "concern": null
+  },
+  "results": [
+    {
+      "rank": 1,
+      "score": 0.49371522665023804,
+      "doc_id": "kb_0005722_c1",
+      "intent": "Seeking Help",
+      "concern": "Medium",
+      "text": "It sounds like you're experiencing a lot of stress due to the demands in your job and personal life. This stress is causing you to feel tense, irritable, and overwhelmed even by small tasks. It's also affecting your ability to relax and unwind, leading to problems with sleep. Here are some suggestions for managing stress and preventing burnout: 1. Prioritize self-care: Make sure to prioritize taking care of yourself. This includes setting boundaries between work and personal life, allocating time for activities you enjoy, and practicing relaxation techniques such as deep breathing exercises or meditation. Taking breaks throughout the day can also be helpful. 2. Time management: When feeling overwhelmed, it can be useful to break tasks down into smaller, manageable steps. Creating a schedule or to-do list can help you stay organized and focused.",
+      "source": "csv"
+    },
+    {
+      "rank": 2,
+      "score": 0.5197835564613342,
+      "doc_id": "kb_0003762_c1",
+      "intent": "Seeking Help",
+      "concern": "Medium",
+      "text": "It sounds like you are going through a challenging time with the increasing demands of your job. Feeling overwhelmed and exhausted can be draining, especially when it affects both work and personal life. It's great that you recognize the importance of finding effective stress management techniques to restore balance and prevent burnout. Here are some suggestions: 1. Prioritize self-care: Make sure you are taking care of yourself physically, emotionally, and mentally. This includes getting enough sleep, eating nutritious food, engaging in regular exercise, and setting aside time for activities that bring you joy and relaxation. 2. Establish boundaries: Set clear boundaries between work and personal life. Create designated times during the day where you disconnect from work-related tasks and focus on activities outside of work. Avoid checking emails or responding to work requests during personal time as much as possible.",
+      "source": "csv"
+    },
+    {
+      "rank": 3,
+      "score": 0.5355948805809021,
+      "doc_id": "kb_0001929_c1",
+      "intent": "Cause of Distress",
+      "concern": "Medium",
+      "text": "It sounds like you're experiencing a lot of stress and burnout from your job, which is impacting both your physical and emotional well-being. It's important to prioritize self-care and establish healthier work boundaries in order to recover from burnout. Here are some suggestions that may help: 1. Take breaks: Make sure to schedule regular breaks throughout your workday, even if they're short. Use this time to step away from your desk, stretch, or engage in activities that help you relax and recharge. 2. Set clear boundaries: Communicate your needs and limitations to your colleagues and supervisors. Establishing boundaries around your working hours, workload, and availability can help prevent excessive stress and ensure you have time for yourself outside of work. 3. Practice relaxation techniques: Explore different relaxation techniques such as deep breathing exercises, meditation, or mindfulness practices.",
+      "source": "csv"
+    },
+    {
+      "rank": 4,
+      "score": 0.5582817196846008,
+      "doc_id": "kb_0001159_c1",
+      "intent": "Mood Tracking",
+      "concern": "Low",
+      "text": "It can be incredibly challenging to manage work-related stress, especially when there is a constant pressure to meet deadlines and perform at a high level. Feeling overwhelmed and burnt out is a common experience in these situations. It's important to prioritize self-care and find ways to create a healthier work-life balance. One suggestion is to establish clear boundaries between your work and personal life. Set specific times for work and stick to them as much as possible. This might involve creating a schedule that allows for breaks and time to recharge outside of work hours. Additionally, consider setting limits on the number of hours you work each day or week to prevent burnout. Finding healthy coping mechanisms is also crucial. Engaging in activities that help you relax and unwind can alleviate stress.",
+      "source": "csv"
+    },
+    {
+      "rank": 5,
+      "score": 0.5586487054824829,
+      "doc_id": "kb_0001436_c1",
+      "intent": "Mood Tracking",
+      "concern": "Low",
+      "text": "It sounds like you're going through a challenging time due to the stress from your demanding job. Feeling burnt out and emotionally drained can be overwhelming, but there are steps you can take to recover and restore a sense of fulfillment in your life. Firstly, it may be helpful to prioritize self-care. This means making sure you're taking care of your physical and emotional well-being. Engaging in activities that bring you joy and relaxation outside of work can help recharge your energy levels. It could be anything from spending time with loved ones, pursuing hobbies or interests, exercising, or simply practicing mindfulness and self-reflection. Additionally, setting boundaries between work and personal life is crucial. Establishing clear limits on when and how much you engage with work-related tasks outside of working hours can prevent burnout.",
+      "source": "csv"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 seed: 42
 paths:
-  raw_csv: data/raw/final/mh_signal_data_w-concern-intent.csv
+  raw_csv: data/raw/kb/rag_intent_data_w_concern.csv
   splits_dir: data/splits
   processed_dir: data/processed
   results_dir: results
@@ -11,3 +11,27 @@ split:
   val_size_from_train: 0.1765
 text:
   max_len: 256
+
+kb:
+  # where raw HF pulls or interim CSVs can live (optional)
+  raw_dir: data/raw/kb
+  # all KB artifacts live under processed_dir/kb
+  processed_dir: data/processed/kb
+  corpus_jsonl: data/processed/kb/kb_snippets.jsonl     # chunked counselor snippets
+  metadata_jsonl: data/processed/kb/kb_meta.jsonl        # 1:1 with corpus
+  embeddings_npy: data/processed/kb/kb_embeddings.npy    # float32 matrix
+  faiss_index: data/processed/kb/kb.faiss                 # FAISS index
+
+  # how to read columns from your CSV
+  schema:
+    input_col: input
+    output_col: output   # <- becomes the retrieval "text"
+    intent_col: Final_Intent_Tag
+    concern_col: Concern_Level
+    id_col: doc_id       # auto-created if missing
+
+  # chunking config (good defaults)
+  chunking:
+    enabled: true
+    target_tokens: 140      # ~80–180 is ideal
+    min_chars: 20
