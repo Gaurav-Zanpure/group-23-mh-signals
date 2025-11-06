@@ -6,7 +6,7 @@ from tqdm import tqdm
 import warnings
 import re
 from sklearn.preprocessing import MultiLabelBinarizer
-from sklearn.metrics import classification_report, multilabel_confusion_matrix, accuracy_score, 
+from sklearn.metrics import classification_report, precision_recall_curve
 
 
 # --- Configuration ---
