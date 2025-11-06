@@ -1,22 +1,21 @@
 import pandas as pd
-import argparse
+import numpy as np
 import torch
 from transformers import pipeline, AutoTokenizer
 from tqdm import tqdm
-from collections import Counter
 import warnings
 import re
 from sklearn.preprocessing import MultiLabelBinarizer
-from sklearn.metrics import classification_report, multilabel_confusion_matrix, accuracy_score
-import numpy as np
+from sklearn.metrics import classification_report, multilabel_confusion_matrix, accuracy_score, 
 
 
 # --- Configuration ---
-INPUT_FILE = "data/raw/mh_signal_data_w-intent.csv"
-OUTPUT_DATASET_FILE = "data/full_dataset_tagged.csv"
-OUTPUT_EVAL_FILE = "data/evaluation_report.csv"
-CONFIDENCE_THRESHOLD = 0.5
+INPUT_FILE = "data/llm_taged/mh_signal_data_w-intent.csv"
+OUTPUT_DATASET_FILE = "data/llm_taged/full_dataset_tagged.csv"
+OUTPUT_EVAL_FILE = "data/llm_taged/evaluation_report.csv"
 BATCH_SIZE = 16
+MODEL_NAME = "MoritzLaurer/mDeBERTa-v3-base-mnli-xnli"
+# MODEL_NAME = "facebook/bart-large-mnli"
 
 # --- Labels ---
 ALL_LABELS = [
@@ -31,49 +30,129 @@ ALL_LABELS = [
     "Miscellaneous",
 ]
 
-# We will only ask the model to predict the 8 semantic tags. "Miscellaneous" will be a fallback.
-SEMANTIC_LABELS = [l for l in ALL_LABELS if l != "Miscellaneous"]
-MODEL_NAME = "MoritzLaurer/mDeBERTa-v3-base-mnli-xnli"
-
+SEMANTIC_LABELS = [
+    ("A person is in critical risk of suicide or self-harm", "Critical Risk"),
+    ("A person is expressing feelings of depression, anxiety, or general distress", "Mental Distress"),
+    ("A person is describing a negative coping mechanism (e.g., substance abuse, self-isolation)", "Maladaptive Coping"),
+    ("A person is describing a positive coping mechanism (e.g., exercise, journaling, meditation)", "Positive Coping"),
+    ("A person is asking for help, advice, or resources", "Seeking Help"),
+    ("A person is sharing an update on their treatment, medication, or therapy", "Progress Update"),
+    ("A person is sharing a log of their current mood or feelings", "Mood Tracking"),
+    ("A person is identifying a specific reason for their distress (e.g., job, relationship, school)", "Cause of Distress")
+]
+SEMANTIC_LABEL_NAMES = [label for desc, label in SEMANTIC_LABELS]
 
 def parse_human_tags(tag_string: str) -> list:
     """
-    Converts a comma-separated string of tags into a clean list.
+    Converts a comma or semicolon-separated string of tags into a clean, canonical list.
     """
     if not isinstance(tag_string, str) or not tag_string.strip():
         return []
-    # Remove quotes, split by comma, strip whitespace
-    tags = [tag.strip() for tag in tag_string.strip('"').split(',')]
-    # Filter out any empty strings that might result
-    return [tag for tag in tags if tag]
+
+    label_map = {
+        **{label.lower(): label for label in ALL_LABELS},
+        **{label: label for label in ALL_LABELS},
+        'cause of distress': 'Cause of Distress',
+        'causes of distress': 'Cause of Distress',
+        'progress update': 'Progress Update',
+        'progress update. cause of distress': 'Progress Update',
+    }
+
+    tags = re.split(r'[;,]', tag_string)
+    clean_tags = set()
+    for tag in tags:
+        tag_clean = tag.strip().strip('"')
+        canonical_tag = label_map.get(tag_clean.lower())
+        if canonical_tag:
+            clean_tags.add(canonical_tag)
+
+    if not clean_tags:
+        return ["Miscellaneous"]
+
+    return list(clean_tags)
 
 
-def run_classifier(texts: list, classifier, batch_size: int, threshold: float) -> list:
-    """Helper function to run the pipeline and process results."""
-    print(f"\nProcessing {len(texts)} posts...")
-    all_tags = []
-    
+def get_model_scores(texts: list, classifier, batch_size: int) -> list:
+    """
+    Runs the pipeline and returns a list of dictionaries containing the raw scores for each semantic label.
+    """
+    print(f"\nGetting model scores for {len(texts)} posts...")
+    all_scores = []
+
+    label_descriptions = [desc for desc, label in SEMANTIC_LABELS]
+    description_to_label_map = {desc: label for desc, label in SEMANTIC_LABELS}
+
     for output in tqdm(
         classifier(
             texts,
-            candidate_labels=SEMANTIC_LABELS,
+            candidate_labels=label_descriptions,
             multi_label=True,
             batch_size=batch_size
         ),
         total=len(texts),
         desc="Classifying posts"
     ):
+        score_dict = {label: 0.0 for label in SEMANTIC_LABEL_NAMES}
+        for model_label, score in zip(output['labels'], output['scores']):
+            simple_label = description_to_label_map[model_label]
+            score_dict[simple_label] = score
+
+        all_scores.append(score_dict)
+
+    return all_scores
+
+def find_optimal_thresholds(y_true_bin, y_pred_scores_df):
+    """
+    Finds the optimal F1 threshold for each semantic label.
+    """
+    print("\n--- Finding Optimal Thresholds ---")
+    optimal_thresholds = {}
+
+    for label in SEMANTIC_LABEL_NAMES:
+        # Get the binary true labels for this category
+        y_true_col = y_true_bin[label]
+        y_pred_scores_col = y_pred_scores_df[label]
+
+        precisions, recalls, thresholds = precision_recall_curve(
+            y_true_col, y_pred_scores_col
+        )
+        # Adding a small epsilon (1e-9) to avoid division by zero
+        f1_scores = (2 * precisions * recalls) / (precisions + recalls + 1e-9)
+
+        # Find the threshold that gives the highest F1 score
+        best_f1_idx = np.argmax(f1_scores)
+        best_threshold = thresholds[best_f1_idx]
+
+        optimal_thresholds[label] = best_threshold
+        print(f"Optimal threshold for {label:<20}: {best_threshold:.4f} (F1: {f1_scores[best_f1_idx]:.4f})")
+
+    return optimal_thresholds
+
+def apply_thresholds(y_pred_scores_df, optimal_thresholds):
+    """
+    Applies the dictionary of optimal thresholds to the score dataframe to get the final tag lists.
+    """
+    print("\nApplying optimal thresholds to get final tags...")
+    all_tags = []
+    # Convert dataframe to list of dictionaries for iteration
+    scores_list = y_pred_scores_df.to_dict('records')
+
+    for post_scores in scores_list:
         tags = []
-        for label, score in zip(output['labels'], output['scores']):
-            if score > threshold:
+        for label, score in post_scores.items():
+            # Check if the score meets the specific threshold for that label
+            if score >= optimal_thresholds[label]:
                 tags.append(label)
-    
+
+        if not tags:
+            tags = ["Miscellaneous"]
+
         all_tags.append(tags)
-        
+
     return all_tags
 
 
-def main(input_path, output_dataset, output_evaluation, threshold, batch_size):
+def main(input_path, output_dataset, output_evaluation, batch_size):
 
     # --- Model Pipeline ---
     print("Setting up model pipeline...")
@@ -94,7 +173,6 @@ def main(input_path, output_dataset, output_evaluation, threshold, batch_size):
         return tokenizer.decode(tokens['input_ids'], skip_special_tokens=True)
 
     # --- Preparing Data ---
-    print(f"\nReading: {input_path}")
     df = pd.read_csv(input_path)
     
     # Rename 'Post' to 'Text' if it exists, for consistency
@@ -103,8 +181,6 @@ def main(input_path, output_dataset, output_evaluation, threshold, batch_size):
         
     df["Text"] = df["Text"].fillna("").astype(str)
     df["Tag"] = df["Tag"].fillna("").astype(str)
-    
-    # Truncating text for the model
     df["Truncated_Text"] = df["Text"].apply(truncate_text)
 
     df_labeled = df[df['Tag'] != ""].copy()
@@ -120,30 +196,26 @@ def main(input_path, output_dataset, output_evaluation, threshold, batch_size):
     if not df_labeled.empty:
         print("\n--- Evaluating Model on Manually tagged Set ---")
         df_labeled['Human_Tags'] = df_labeled['Tag'].apply(parse_human_tags)
-        # Handling empty lists -> assign 'Miscellaneous'
-        df_labeled['Human_Tags'] = df_labeled['Human_Tags'].apply(
-            lambda tags: tags if tags else ['Miscellaneous']
-        )
-        
-        texts_to_eval = df_labeled['Truncated_Text'].tolist()
-        model_tags_eval = run_classifier(texts_to_eval, classifier, batch_size, threshold)
-        df_labeled['Model_Tags'] = model_tags_eval
-        # Assign 'Miscellaneous'
-        df_labeled['Model_Tags'] = df_labeled['Model_Tags'].apply(
-            lambda tags: tags if tags else ['Miscellaneous']
-        )
-
-        # Generating Evaluation Report
-        print("\n--- Evaluation Report ---")
-        # Use MultiLabelBinarizer to convert tag lists into a binary matrix
         mlb = MultiLabelBinarizer(classes=ALL_LABELS)
-        
         y_true = mlb.fit_transform(df_labeled['Human_Tags'])
-        y_pred = mlb.transform(df_labeled['Model_Tags'])
+        y_true_bin_df = pd.DataFrame(y_true, columns=mlb.classes_)
+    
+        # Get model raw scores  
+        texts_to_eval = df_labeled['Truncated_Text'].tolist()
+        model_scores_list = get_model_scores(texts_to_eval, classifier, batch_size)
+        y_pred_scores_df = pd.DataFrame(model_scores_list)
 
+        # optimal thresholds
+        optimal_thresholds = find_optimal_thresholds(y_true_bin_df, y_pred_scores_df)
+
+        model_tags_eval = apply_thresholds(y_pred_scores_df, optimal_thresholds)
+        df_labeled['Model_Tags'] = model_tags_eval
+        y_pred_optimal = mlb.transform(model_tags_eval)
+
+        print("\n--- Final Report (with Optimal Thresholds) ---")
         report = classification_report(
-            y_true, 
-            y_pred, 
+            y_true,
+            y_pred_optimal,
             target_names=mlb.classes_,
             zero_division=0
         )
@@ -162,82 +234,37 @@ def main(input_path, output_dataset, output_evaluation, threshold, batch_size):
     if not df_unlabeled.empty:
         print("\n--- Tagging Unlabeled Set ---")
         texts_to_tag = df_unlabeled['Truncated_Text'].tolist()
-        model_tags_new = run_classifier(texts_to_tag, classifier, batch_size, threshold)
         
-        df_unlabeled['Model_Tags'] = model_tags_new
-        # Assign 'Miscellaneous'
-        df_unlabeled['Final_Tags'] = df_unlabeled['Model_Tags'].apply(
-            lambda tags: tags if tags else ['Miscellaneous']
-        )
-        df_unlabeled['Tag_Source'] = 'Model'
+        model_scores_list_new = get_model_scores(texts_to_tag, classifier, batch_size)
+        y_pred_scores_df_new = pd.DataFrame(model_scores_list_new)
+        
+        print("\nApplying optimal thresholds to unlabeled data...")
+        model_tags_new = apply_thresholds(y_pred_scores_df_new, optimal_thresholds)
+
+        df_unlabeled['Final_Tags'] = model_tags_new
+        df_unlabeled['Tag_Source'] = 'Model_Optimal'
         final_unlabeled_rows = df_unlabeled
 
-    # --- Saving Final Dataset ---
+    print("\n--- Saving Final Dataset ---")
     if final_labeled_rows is not None and not final_labeled_rows.empty:
         df_final = pd.concat([final_labeled_rows, final_unlabeled_rows])
     else:
         df_final = final_unlabeled_rows
-        
+
     final_cols = ['Text', 'Tag', 'Final_Tags', 'Tag_Source']
-    other_cols = [c for c in df.columns if c not in final_cols and c not in ['Truncated_Text']]
-    
+    other_cols = [c for c in df.columns if c not in final_cols and c not in ['Truncated_Text', 'Post', 'Model_Tags']]
+
     df_final = df_final[other_cols + final_cols]
 
     df_final.to_csv(output_dataset, index=False, encoding="utf-8")
     print(f"\nSaved full {len(df_final)}-post tagged dataset to: {output_dataset}\n")
     print("--- Process Complete ---")
 
-
-if __name__ == "__main__":
-    # parser = argparse.ArgumentParser(
-    #     description="Evaluate and tag mental health dataset using Zero-Shot NLP."
-    # )
-    # parser.add_argument(
-    #     "--input_path", 
-    #     type=str, 
-    #     required=True, 
-    #     help="Path to input CSV (must have a 'Text' or 'Post' column)."
-    # )
-    # parser.add_argument(
-    #     "--output_dataset",
-    #     type=str,
-    #     required=True,
-    #     help="Path to save the FULL, combined (6000 post) tagged dataset."
-    # )
-    # parser.add_argument(
-    #     "--output_evaluation",
-    #     type=str,
-    #     required=True,
-    #     help="Path to save the side-by-side (500 post) evaluation report."
-    # )
-    # parser.add_argument(
-    #     "--threshold",
-    #     type=float,
-    #     default=0.5,
-    #     help="Confidence threshold (0.0 to 1.0) to assign a tag. Default: 0.5"
-    # )
-    # parser.add_argument(
-    #     "--batch_size",
-    #     type=int,
-    #     default=16,
-    #     help="Batch size for the model. Adjust based on GPU VRAM. Default: 16"
-    # )
-    
-    # args = parser.parse_args()
-    # main(
-    #     args.input_path, 
-    #     args.output_dataset, 
-    #     args.output_evaluation, 
-    #     args.threshold, 
-    #     args.batch_size
-    # )
-    print("Starting the tagging and evaluation process...")
-    main(
-        INPUT_FILE,
-        OUTPUT_DATASET_FILE,
-        OUTPUT_EVAL_FILE,
-        CONFIDENCE_THRESHOLD,
-        BATCH_SIZE
-        )
-    print("All tasks finished.")
-    
+print("Starting the optimal tagging and evaluation process...")
+main(
+    INPUT_FILE,
+    OUTPUT_DATASET_FILE,
+    OUTPUT_EVAL_FILE,
+    BATCH_SIZE
+)
+print("All tasks finished.")
