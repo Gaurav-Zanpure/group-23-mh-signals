@@ -1,8 +1,5 @@
 import argparse
 import json
-import math
-import random
-import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +14,7 @@ from peft import get_peft_model, LoraConfig
 from packaging import version
 from sklearn.metrics import f1_score, average_precision_score
 from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.model_selection import train_test_split
 import transformers
 from transformers import (
     AutoModelForSequenceClassification,
@@ -25,7 +23,6 @@ from transformers import (
     Trainer,
     TrainingArguments,
 )
-
 from .helper import (
     CANONICAL,
     CANON_KEYS,
@@ -34,6 +31,7 @@ from .helper import (
     ensure_dir,
     read_split_csv,
     prob_to_tags,
+    read_and_process_data,
 )
 
 class WeightedTrainer(Trainer):
@@ -52,7 +50,6 @@ class WeightedTrainer(Trainer):
 
         return (loss, outputs) if return_outputs else loss
     
-# --- Main Training and Evaluation Logic ---
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True, help="Path to the model config YAML.")
@@ -74,10 +71,28 @@ def main():
     ensure_dir(save_dir / "tables")
 
     # Load and Prepare Data
-    splits_dir = Path(data_cfg["paths"]["splits_dir"])
-    train_df = read_split_csv(splits_dir / "train.csv")
-    val_df = read_split_csv(splits_dir / "val.csv")
-    test_df = read_split_csv(splits_dir / "test.csv")
+    # splits_dir = Path(data_cfg["paths"]["splits_dir"])
+    # train_df = read_split_csv(splits_dir / "train.csv")
+    # val_df = read_split_csv(splits_dir / "val.csv")
+    # test_df = read_split_csv(splits_dir / "test.csv")
+
+    print("Loading and splitting data dynamically...")
+    raw_data_path = Path(data_cfg["paths"]["llm_tagged_dir"]) / "full_dataset_tagged_BART.csv"
+    all_df = read_and_process_data(raw_data_path)
+    test_size = data_cfg["split"]["test_size"]
+    val_size = data_cfg["split"]["val_size_from_train"]
+    seed = train_cfg.get("seed", 42)
+    train_val_df, test_df = train_test_split(
+        all_df,
+        test_size=test_size,
+        random_state=seed,
+    )
+    train_df, val_df = train_test_split(
+        train_val_df,
+        test_size=val_size,
+        random_state=seed,
+    )
+    print(f"Data split: {len(train_df)} train, {len(val_df)} val, {len(test_df)} test.")
 
     mlb = MultiLabelBinarizer(classes=sorted(CANON_KEYS))
     Y_train = mlb.fit_transform(train_df["TagsList"])
@@ -196,7 +211,7 @@ def main():
         "Pred": [prob_to_tags(p, train_cfg["threshold"], label_names) for p in P_test],
     })
 
-    # Find Optimal Threshold and Re-evaluate ---
+    # Find Optimal Threshold and Re-evaluate
     print("\n Finding optimal threshold on validation set...")
     best_threshold = 0.0
     best_f1 = 0.0

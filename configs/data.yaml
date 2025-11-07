@@ -4,6 +4,7 @@ paths:
   splits_dir: data/splits
   processed_dir: data/processed
   results_dir: results
+  llm_tagged_dir: data/llm_tagged
 labels:
   concern_map: {low: 0, medium: 1, high: 2}
 split:
