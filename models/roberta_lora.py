@@ -24,7 +24,6 @@ from transformers import (
     TrainingArguments,
 )
 from .helper import (
-    CANONICAL,
     CANON_KEYS,
     set_seed,
     load_yaml,
@@ -33,21 +32,34 @@ from .helper import (
     prob_to_tags,
     read_and_process_data,
 )
+from .focal_loss import FocalLoss
 
 class WeightedTrainer(Trainer):
-    def __init__(self, class_weights=None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.class_weights = class_weights.to(self.model.device)
+    # def __init__(self, class_weights=None, *args, **kwargs):
+    #     super().__init__(*args, **kwargs)
+    #     self.class_weights = class_weights.to(self.model.device)
 
+    # def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+    #     labels = inputs.pop("labels")
+    #     outputs = model(**inputs)
+    #     logits = outputs.logits
+
+    #     # Multi-label BCE loss with class weights
+    #     loss_fct = BCEWithLogitsLoss(pos_weight=self.class_weights)
+    #     loss = loss_fct(logits, labels)
+
+    #     return (loss, outputs) if return_outputs else loss
+    def __init__(self, class_weights=None, gamma = 2.0, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.loss_fct = FocalLoss(gamma=gamma,
+                                  pos_weight=class_weights)
+        
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         labels = inputs.pop("labels")
         outputs = model(**inputs)
         logits = outputs.logits
-
-        # Multi-label BCE loss with class weights
-        loss_fct = BCEWithLogitsLoss(pos_weight=self.class_weights)
-        loss = loss_fct(logits, labels)
-
+        self.loss_fct = self.loss_fct.to(self.model.device)
+        loss = self.loss_fct(logits, labels)
         return (loss, outputs) if return_outputs else loss
     
 def main():
@@ -175,6 +187,7 @@ def main():
     else:
         args["evaluation_strategy"] = "epoch"
     
+    gamma = train_cfg.get("gamma", 2.0)
     training_args = TrainingArguments(**args)
 
     trainer = WeightedTrainer(
@@ -184,7 +197,8 @@ def main():
         eval_dataset=val_ds,
         tokenizer=tokenizer,
         compute_metrics=compute_metrics,
-        class_weights=class_weights
+        class_weights=class_weights,
+        gamma=gamma
     )
     print("Model and Trainer are set up. Starting training...")
     t0 = time.time()
