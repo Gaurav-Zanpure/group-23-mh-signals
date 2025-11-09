@@ -76,7 +76,7 @@ def main():
     # val_df = read_split_csv(splits_dir / "val.csv")
     # test_df = read_split_csv(splits_dir / "test.csv")
 
-    print("Loading and splitting data dynamically...")
+    print("Loading and splitting data dynamically...", flush=True)
     raw_data_path = Path(data_cfg["paths"]["llm_tagged_dir"]) / "full_dataset_tagged_BART.csv"
     all_df = read_and_process_data(raw_data_path)
     test_size = data_cfg["split"]["test_size"]
