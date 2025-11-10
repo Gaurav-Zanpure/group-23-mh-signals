@@ -28,7 +28,7 @@ from .helper import (
     read_concern_split_csv
 )
 
-# --- Custom Trainer for Weighted Loss ---
+# --- Weighted Loss ---
 
 class WeightedTrainer(Trainer):
     def __init__(self, class_weights=None, *args, **kwargs):
@@ -49,37 +49,34 @@ class WeightedTrainer(Trainer):
 
         return (loss, outputs) if return_outputs else loss
 
-# --- Main Training and Evaluation Logic ---
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True, help="Path to the model config YAML.")
     args = parser.parse_args()
 
-    # 1. Load Configs and Set Up Environment
+    # Configs and Set Up Environment
     cfg = load_yaml(args.config)
     data_cfg = load_yaml(cfg["data"]["data_cfg"])
     train_cfg = cfg["training"]
     model_cfg = cfg["model"]
     lora_cfg = cfg.get("lora", {})
 
-    set_seed(train_cfg.get("seed", 42)) # Using imported helper
+    set_seed(train_cfg.get("seed", 42))
 
     run_name = cfg["logging"]["run_name"]
     save_root = Path(cfg["logging"]["save_dir"])
     save_dir = save_root / f"{run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    ensure_dir(save_dir) # Using imported helper
-    ensure_dir(save_dir / "tables") # Using imported helper
+    ensure_dir(save_dir)
+    ensure_dir(save_dir / "tables")
 
-    # 2. Load and Prepare Data
+
     splits_dir = Path(data_cfg["paths"]["splits_dir"])
-    # Using the imported task-specific CSV reader
     train_df = read_concern_split_csv(splits_dir / "train.csv")
     val_df = read_concern_split_csv(splits_dir / "val.csv")
     test_df = read_concern_split_csv(splits_dir / "test.csv")
 
-    # Use the label map from data.yaml
+
     label_map = data_cfg["labels"]["concern_map"]
-    # Get label names in order of their index (0, 1, 2)
     label_names = sorted(label_map, key=label_map.get)
     
     Y_train = train_df["Concern_Level"].map(label_map).values
@@ -93,18 +90,17 @@ def main():
     class_counts = np.bincount(Y_train, minlength=num_labels)
     print(f"Class counts (Train): {list(zip(label_names, class_counts))}")
     
-    class_weights = 1.0 / (class_counts + 1e-5)  # inverse frequency
-    class_weights = class_weights / class_weights.sum() * num_labels  # normalize
+    class_weights = 1.0 / (class_counts + 1e-5) 
+    class_weights = class_weights / class_weights.sum() * num_labels 
     class_weights = torch.tensor(class_weights, dtype=torch.float32)
     print(f"Applying class weights: {list(zip(label_names, class_weights.numpy()))}")
 
 
-    # 3. Tokenize Data for Hugging Face
+    # Tokenize Data
     tokenizer = AutoTokenizer.from_pretrained(model_cfg["name"])
 
     def create_dataset(df, y):
         ds = Dataset.from_pandas(df)
-        # For single-label, labels are just the integer indices
         ds = ds.add_column("labels", y)
         return ds
 
@@ -119,11 +115,11 @@ def main():
     val_ds = create_dataset(val_df, Y_val).map(tokenize, batched=True)
     test_ds = create_dataset(test_df, Y_test).map(tokenize, batched=True)
 
-    # 4. Configure Model, LoRA, and Metrics
+    # Model, LoRA, and Metrics
     model = AutoModelForSequenceClassification.from_pretrained(
         model_cfg["name"],
         num_labels=num_labels,
-        problem_type="single_label_classification", # Changed
+        problem_type="single_label_classification",
     )
 
     peft_config = LoraConfig(**lora_cfg)
@@ -132,7 +128,7 @@ def main():
 
     def compute_metrics(p: EvalPrediction):
         logits, labels = p.predictions, p.label_ids
-        preds = np.argmax(logits, axis=1) # Use argmax for single-label
+        preds = np.argmax(logits, axis=1)
         
         f1_macro = f1_score(labels, preds, average="macro", zero_division=0)
         acc = accuracy_score(labels, preds)
@@ -142,7 +138,7 @@ def main():
             "macro_f1": f1_macro,
         }
 
-    # 5. Set Up and Run Trainer
+    # Run Trainer
     args = {
         "output_dir":train_cfg["output_dir"],
         "learning_rate":float(train_cfg["learning_rate"]),
@@ -153,7 +149,7 @@ def main():
         "eval_strategy":"epoch",
         "save_strategy":"epoch",
         "load_best_model_at_end":True,
-        "metric_for_best_model":"macro_f1", # Changed from pr_auc_macro
+        "metric_for_best_model":"macro_f1",
         "push_to_hub":False,
         "warmup_steps": 500,
         "greater_is_better": True,
@@ -161,7 +157,7 @@ def main():
         "gradient_accumulation_steps": 4,
         "bf16":True,
     }
-    # Handle transformers version compatibility for eval_strategy
+
     if version.parse(transformers.__version__) >= version.parse("4.56.0"):
         args["eval_strategy"] = "epoch"
     else:
@@ -169,7 +165,7 @@ def main():
     
     training_args = TrainingArguments(**args)
 
-    trainer = WeightedTrainer( # Using our modified trainer
+    trainer = WeightedTrainer(
         model=model,
         args=training_args,
         train_dataset=train_ds,
@@ -184,12 +180,11 @@ def main():
     train_time = time.time() - t0
     print("Training completed.")
 
-    # 6. Evaluate and Save Results
+    # Evaluate and Save Results
     print("Evaluating model...")
     val_preds = trainer.predict(val_ds)
     test_preds = trainer.predict(test_ds)
     
-    # Get predicted class index by argmax
     preds_val_idx = np.argmax(val_preds.predictions, axis=1)
     preds_test_idx = np.argmax(test_preds.predictions, axis=1)
 
@@ -209,8 +204,6 @@ def main():
         "True": true_test_labels,
         "Pred": preds_test_labels,
     })
-
-    # --- 7. Save Final Metrics and Configs ---
     
     # Get metrics from the trainer.predict() call
     val_metrics = val_preds.metrics
