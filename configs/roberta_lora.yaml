@@ -34,7 +34,7 @@ training:
   # Number of training epochs
   epochs: 10
   # Gamma parameter for Focal Loss
-  gamma: 2.5
+  gamma: 1.5
   # Batch size for training
   train_batch_size: 8
   # Batch size for evaluation
