@@ -29,42 +29,24 @@ from .helper import (
     read_concern_split_csv
 )
 
-from .focal_loss import FocalLossConcern
-
 # --- Weighted Loss ---
 class WeightedTrainer(Trainer):
-    # def __init__(self, class_weights=None, *args, **kwargs):
-    #     super().__init__(*args, **kwargs)
-    #     if class_weights is not None:
-    #         self.class_weights = class_weights.to(self.model.device)
-    #     else:
-    #         self.class_weights = None
-
-    # def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
-    #     labels = inputs.pop("labels")
-    #     outputs = model(**inputs)
-    #     logits = outputs.logits
-
-    #     # Single-label Cross-Entropy loss with class weights
-    #     loss_fct = CrossEntropyLoss(weight=self.class_weights)
-    #     loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
-
-    #     return (loss, outputs) if return_outputs else loss
-    def __init__(self, class_weights=None, gamma=2.0, *args, **kwargs):
+    def __init__(self, class_weights=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Pre-initialize the loss function
-        self.loss_fct = FocalLossConcern(
-            gamma=gamma,
-            weight=class_weights 
-        )
-    
+        if class_weights is not None:
+            self.class_weights = class_weights.to(self.model.device)
+        else:
+            self.class_weights = None
+
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         labels = inputs.pop("labels")
         outputs = model(**inputs)
         logits = outputs.logits
 
-        # The FocalLossConcern forward pass will handle moving weights to the device
-        loss = self.loss_fct(logits, labels)
+        # Single-label Cross-Entropy loss with class weights
+        loss_fct = CrossEntropyLoss(weight=self.class_weights)
+        loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
+
         return (loss, outputs) if return_outputs else loss
 
 def main():
@@ -209,7 +191,6 @@ def main():
     else:
         args["evaluation_strategy"] = "epoch"
     
-    gamma = train_cfg.get("gamma", 1.5)
     training_args = TrainingArguments(**args)
 
     trainer = WeightedTrainer(
@@ -220,7 +201,6 @@ def main():
         tokenizer=tokenizer,
         compute_metrics=compute_metrics,
         class_weights=class_weights,
-        gamma=gamma
     )
     
     print("Model and Trainer are set up. Starting training...")
