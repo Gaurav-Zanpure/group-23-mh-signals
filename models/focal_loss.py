@@ -54,7 +54,7 @@ class FocalLossConcern(nn.Module):
           weight (torch.Tensor, optional): A weight for each class. Shape (num_classes,).
           reduction (str): 'mean', 'sum', or 'none'.
         """
-        super(FocalLoss, self).__init__()
+        super(FocalLossConcern, self).__init__()
         self.gamma = gamma
         self.weight = weight
         self.reduction = reduction
