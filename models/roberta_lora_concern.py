@@ -13,6 +13,7 @@ from datasets import Dataset
 from peft import get_peft_model, LoraConfig
 from packaging import version
 from sklearn.metrics import f1_score, accuracy_score, confusion_matrix
+from sklearn.model_selection import train_test_split
 import transformers
 from transformers import (
     AutoModelForSequenceClassification,
@@ -70,11 +71,30 @@ def main():
     ensure_dir(save_dir / "tables")
 
 
-    splits_dir = Path(data_cfg["paths"]["splits_dir"])
-    train_df = read_concern_split_csv(splits_dir / "train.csv")
-    val_df = read_concern_split_csv(splits_dir / "val.csv")
-    test_df = read_concern_split_csv(splits_dir / "test.csv")
-
+    # splits_dir = Path(data_cfg["paths"]["splits_dir"])
+    # train_df = read_concern_split_csv(splits_dir / "train.csv")
+    # val_df = read_concern_split_csv(splits_dir / "val.csv")
+    # test_df = read_concern_split_csv(splits_dir / "test.csv")
+    print("Loading and splitting data dynamically...", flush=True)
+    raw_data_dir = Path(data_cfg["paths"]["llm_tagged_dir"])
+    raw_data_path = raw_data_dir / "full_dataset_bart_w-intent-concern.csv"
+    all_df = read_concern_split_csv(raw_data_path)
+    test_size = data_cfg["split"]["test_size"]
+    val_size = data_cfg["split"]["val_size_from_train"]
+    seed = train_cfg.get("seed", 42)
+    train_val_df, test_df = train_test_split(
+        all_df,
+        test_size=test_size,
+        random_state=seed,
+        stratify=all_df["Concern_Level"] 
+    )
+    train_df, val_df = train_test_split(
+        train_val_df,
+        test_size=val_size,
+        random_state=seed,
+        stratify=train_val_df["Concern_Level"]
+    )
+    print(f"Data split: {len(train_df)} train, {len(val_df)} val, {len(test_df)} test.")
 
     label_map = data_cfg["labels"]["concern_map"]
     label_names = sorted(label_map, key=label_map.get)
