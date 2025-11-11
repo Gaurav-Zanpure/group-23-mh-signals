@@ -82,6 +82,15 @@ def main():
     test_size = data_cfg["split"]["test_size"]
     val_size = data_cfg["split"]["val_size_from_train"]
     seed = train_cfg.get("seed", 42)
+
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        print(f"GPU is available. Using device: {device}")
+        print(f"Device name: {torch.cuda.get_device_name(0)}")
+    else:
+        device = torch.device("cpu")
+        print("GPU not available. Using device: CPU.")
+
     train_val_df, test_df = train_test_split(
         all_df,
         test_size=test_size,
