@@ -5,8 +5,6 @@ import torch.nn.functional as F
 class FocalLoss(nn.Module):
     def __init__(self, gamma=2.0, pos_weight=None, reduction='mean'):
         """
-        Multi-label Focal Loss that is compatible with pos_weight.
-
         Args:
           gamma (float): The focusing parameter. Higher values (e.g., 2.0)
                          give more weight to hard-to-classify examples.
@@ -44,5 +42,41 @@ class FocalLoss(nn.Module):
             return torch.mean(loss)
         elif self.reduction == 'sum':
             return torch.sum(loss)
+        else:
+            return loss
+
+
+class FocalLossConcern(nn.Module):
+    def __init__(self, gamma=2.0, weight=None, reduction='mean'):
+        """
+        Args:
+          gamma (float): The focusing parameter.
+          weight (torch.Tensor, optional): A weight for each class. Shape (num_classes,).
+          reduction (str): 'mean', 'sum', or 'none'.
+        """
+        super(FocalLoss, self).__init__()
+        self.gamma = gamma
+        self.weight = weight
+        self.reduction = reduction
+
+    def forward(self, logits, labels):
+        if self.weight is not None:
+            self.weight = self.weight.to(logits.device)
+            
+        # This gives us -log(p_t)
+        ce_loss = F.cross_entropy(logits, labels, reduction='none', weight=self.weight)
+        
+        # Calculate p_t (probability of the true class)
+        probs = F.softmax(logits, dim=1)
+        p_t = probs.gather(1, labels.unsqueeze(1)).squeeze(1)
+        
+        # (1 - p_t)^gamma
+        focal_term = (1 - p_t)**self.gamma
+        loss = focal_term * ce_loss
+        
+        if self.reduction == 'mean':
+            return loss.mean()
+        elif self.reduction == 'sum':
+            return loss.sum()
         else:
             return loss
