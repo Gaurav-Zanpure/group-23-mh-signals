@@ -209,7 +209,7 @@ def main():
     else:
         args["evaluation_strategy"] = "epoch"
     
-    gamma = train_cfg.get("gamma", 2.0)
+    gamma = train_cfg.get("gamma", 1.5)
     training_args = TrainingArguments(**args)
 
     trainer = WeightedTrainer(
