@@ -203,7 +203,7 @@ def main():
         class_weights=class_weights,
     )
     
-    print("Model and Trainer are set up. Starting training...")
+    print("Starting training...")
     t0 = time.time()
     trainer.train()
     train_time = time.time() - t0

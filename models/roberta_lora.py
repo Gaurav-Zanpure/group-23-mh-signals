@@ -35,20 +35,6 @@ from .helper import (
 from .focal_loss import FocalLoss
 
 class WeightedTrainer(Trainer):
-    # def __init__(self, class_weights=None, *args, **kwargs):
-    #     super().__init__(*args, **kwargs)
-    #     self.class_weights = class_weights.to(self.model.device)
-
-    # def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
-    #     labels = inputs.pop("labels")
-    #     outputs = model(**inputs)
-    #     logits = outputs.logits
-
-    #     # Multi-label BCE loss with class weights
-    #     loss_fct = BCEWithLogitsLoss(pos_weight=self.class_weights)
-    #     loss = loss_fct(logits, labels)
-
-    #     return (loss, outputs) if return_outputs else loss
     def __init__(self, class_weights=None, gamma = 2.0, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.loss_fct = FocalLoss(gamma=gamma,
@@ -87,9 +73,8 @@ def main():
     # train_df = read_split_csv(splits_dir / "train.csv")
     # val_df = read_split_csv(splits_dir / "val.csv")
     # test_df = read_split_csv(splits_dir / "test.csv")
-
     print("Loading and splitting data dynamically...", flush=True)
-    raw_data_path = Path(data_cfg["paths"]["llm_tagged_dir"]) / "full_dataset_tagged_BART.csv"
+    raw_data_path = Path(data_cfg["paths"]["llm_tagged_dir"]) / "full_dataset_bart_w-intent-concern.csv"
     all_df = read_and_process_data(raw_data_path)
     test_size = data_cfg["split"]["test_size"]
     val_size = data_cfg["split"]["val_size_from_train"]
@@ -200,7 +185,7 @@ def main():
         class_weights=class_weights,
         gamma=gamma
     )
-    print("Model and Trainer are set up. Starting training...")
+    print("Starting training...")
     t0 = time.time()
     trainer.train()
     train_time = time.time() - t0
