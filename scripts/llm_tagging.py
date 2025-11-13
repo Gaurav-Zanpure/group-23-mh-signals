@@ -14,8 +14,8 @@ INPUT_FILE = "data/llm_taged/mh_signal_data_w-intent.csv"
 OUTPUT_DATASET_FILE = "data/llm_taged/full_dataset_tagged.csv"
 OUTPUT_EVAL_FILE = "data/llm_taged/evaluation_report.csv"
 BATCH_SIZE = 16
-MODEL_NAME = "MoritzLaurer/mDeBERTa-v3-base-mnli-xnli"
-# MODEL_NAME = "facebook/bart-large-mnli"
+# MODEL_NAME = "MoritzLaurer/mDeBERTa-v3-base-mnli-xnli"
+MODEL_NAME = "facebook/bart-large-mnli"
 
 # --- Labels ---
 ALL_LABELS = [
