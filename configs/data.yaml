@@ -1,7 +1,7 @@
 seed: 42
 paths:
   raw_csv: data/raw/final/mh_signal_data_w-concern-intent.csv
-  splits_dir: data/splits
+  splits_dir: data/llm_tagged/splits
   processed_dir: data/processed
   results_dir: results
   llm_tagged_dir: data/llm_tagged
