@@ -58,19 +58,30 @@ def _normalize_tag(t: str) -> str | None:
 
 def read_split_csv(p: Path):
     df = pd.read_csv(p)
+
+    # FIXED: Accept Final_Tags instead of Tag
     if "Post" not in df.columns and "Text" in df.columns:
         df = df.rename(columns={"Text": "Post"})
     if "Post" not in df.columns:
         raise ValueError(f"'Post' column missing in {p}")
-    if "Tag" not in df.columns:
-        raise ValueError(f"'Tag' column missing in {p}")
+    if "Final_Tags" not in df.columns:
+        raise ValueError(f"'Final_Tags' column missing in {p}")
+
+    df = df.rename(columns={"Final_Tags": "Tag"})
     df["Post"] = df["Post"].fillna("").astype(str)
 
     def to_canonical_list(x):
         if isinstance(x, float) and math.isnan(x):
             raw = []
         else:
-            raw = re.split(r"[;,]", str(x))
+            s = str(x).strip()
+            # ---- FIX: parse list-like strings ['Mental Distress', 'Mood Tracking'] ----
+            if s.startswith("[") and s.endswith("]"):
+                s = s[1:-1]  # remove [ ]
+                raw = [item.strip().strip("'").strip('"') for item in s.split(",")]
+            else:
+                raw = re.split(r"[;,]", s)
+
         norm = []
         seen = set()
         for r in raw:
@@ -78,8 +89,10 @@ def read_split_csv(p: Path):
             if can and can not in seen:
                 norm.append(can)
                 seen.add(can)
+
         if not norm:
             norm = ["Miscellaneous"]
+
         return norm
 
     df["TagsList"] = df["Tag"].apply(to_canonical_list)
