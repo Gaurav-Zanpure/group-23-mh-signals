@@ -1,0 +1,16 @@
+labels:
+  concern_map:
+    high: 2
+    low: 0
+    medium: 1
+paths:
+  processed_dir: data/processed
+  raw_csv: data/raw/final/mh_signal_data_w-concern-intent.csv
+  results_dir: results
+  splits_dir: data/llm_tagged/splits
+seed: 42
+split:
+  test_size: 0.15
+  val_size_from_train: 0.1765
+text:
+  max_len: 256
