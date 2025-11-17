@@ -4,7 +4,7 @@ import random
 import re
 from pathlib import Path
 from datetime import datetime
-
+import ast
 import numpy as np
 import pandas as pd
 import torch
@@ -57,7 +57,56 @@ def _normalize_tag(t: str) -> str | None:
     if x in CANONICAL:
         return CANONICAL[x]
     return None
+def read_and_process_data(p: Path):
+    """
+    Read the *single* raw CSV file, rename columns, 
+    and normalize tag lists.
+    """
+    df = pd.read_csv(p)
+    
+    if "Post" not in df.columns and "Text" in df.columns:
+        df = df.rename(columns={"Text": "Post"})
+    if "Post" not in df.columns:
+        raise ValueError(f"'Post' or 'Text' column missing in {p}")
 
+    tag_column = None
+    if "Final_Tags" in df.columns:
+        tag_column = "Final_Tags"
+    elif "Tag" in df.columns:
+        tag_column = "Tag"
+    else:
+        raise ValueError(f"'Tag' or 'Final_Tags' column missing in {p}")
+
+    df["Post"] = df["Post"].fillna("").astype(str)
+
+
+    def to_canonical_list(x):
+        raw = []
+        if isinstance(x, float) and math.isnan(x):
+            raw = []
+        elif isinstance(x, str) and x.startswith("[") and x.endswith("]"):
+            # Handle new format: "['Tag1', 'Tag2']"
+            try:
+                raw = ast.literal_eval(x)
+            except (ValueError, SyntaxError):
+                raw = [] # Handle malformed strings
+        else:
+            # Handle old format: "Tag1; Tag2"
+            raw = re.split(r"[;,]", str(x))
+
+        # Use your existing _normalize_tag function (which I assume is in helper.py)
+        norm, seen = [], set()
+        for r in raw:
+            can = _normalize_tag(r) 
+            if can and can not in seen:
+                norm.append(can)
+                seen.add(can)
+        return norm if norm else ["Miscellaneous"]
+
+    df["TagsList"] = df[tag_column].apply(to_canonical_list)
+    
+    # Return only the columns we need
+    return df[["Post", "TagsList"]]
 
 def read_split_csv(p: Path):
     """Read train/val/test CSVs and normalize tag lists."""

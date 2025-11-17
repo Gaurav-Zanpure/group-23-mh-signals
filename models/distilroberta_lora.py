@@ -12,51 +12,54 @@ import pandas as pd
 import yaml
 
 from sklearn.metrics import f1_score, average_precision_score
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
 from transformers import (
     AutoTokenizer,
     AutoModelForSequenceClassification,
     Trainer,
     TrainingArguments,
-    # DataCollatorWithPadding,
     EvalPrediction,
 )
 from peft import LoraConfig, get_peft_model
 from datasets import Dataset
-# from .helper import (
-#     CANON_KEYS,
-#     set_seed,
-#     load_yaml,
-#     ensure_dir,
-#     read_split_csv,
-#     prob_to_tags,
-# )
 from .helper_distilroberta import (
     CANON_KEYS,
     set_seed,
     load_yaml,
     ensure_dir,
-    read_split_csv,
+    read_and_process_data,
     prob_to_tags,
 )
+
+from .focal_loss import FocalLoss
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 class WeightedTrainer(Trainer):
-    def __init__(self, class_weights=None, *args, **kwargs):
+    def __init__(self, class_weights=None, gamma = 2.0, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.class_weights = class_weights.to(self.model.device)
+        self.loss_fct = FocalLoss(gamma=gamma, pos_weight=class_weights)
+    #     self.class_weights = class_weights.to(self.model.device)
 
+    # def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+    #     labels = inputs.pop("labels")
+    #     outputs = model(**inputs)
+    #     logits = outputs.logits
+
+    #     # Multi-label BCE loss with class weights
+    #     loss_fct = BCEWithLogitsLoss(pos_weight=self.class_weights)
+    #     loss = loss_fct(logits, labels)
+
+    #     return (loss, outputs) if return_outputs else loss
+        
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         labels = inputs.pop("labels")
         outputs = model(**inputs)
         logits = outputs.logits
-
-        # Multi-label BCE loss with class weights
-        loss_fct = BCEWithLogitsLoss(pos_weight=self.class_weights)
-        loss = loss_fct(logits, labels)
-
+        self.loss_fct = self.loss_fct.to(self.model.device)
+        loss = self.loss_fct(logits, labels)
         return (loss, outputs) if return_outputs else loss
 
 def main(args):
@@ -93,10 +96,31 @@ def main(args):
     # train_path = data_cfg["train_path"]
     # test_path = data_cfg["test_path"]
     # dataset = load_dataset("csv", data_files={"train": train_path, "test": test_path})
-    splits_dir = Path(data_cfg["paths"]["splits_dir"])
-    train_df = read_split_csv(splits_dir / "train.csv")
-    val_df = read_split_csv(splits_dir / "val.csv")
-    test_df = read_split_csv(splits_dir / "test.csv")
+    
+    # splits_dir = Path(data_cfg["paths"]["splits_dir"])
+    # train_df = read_split_csv(splits_dir / "train.csv")
+    # val_df = read_split_csv(splits_dir / "val.csv")
+    # test_df = read_split_csv(splits_dir / "test.csv")
+
+    print("Loading and splitting data dynamically...", flush=True)
+    raw_data_path = Path(data_cfg["paths"]["llm_tagged_dir"]) / "full_dataset_bart_w-intent-concern.csv"
+    all_df = read_and_process_data(raw_data_path)
+    test_size = data_cfg["split"]["test_size"]
+    val_size = data_cfg["split"]["val_size_from_train"]
+    seed = train_cfg.get("seed", 42)
+    train_val_df, test_df = train_test_split(
+        all_df,
+        test_size=test_size,
+        random_state=seed,
+    )
+    train_df, val_df = train_test_split(
+        train_val_df,
+        test_size=val_size,
+        random_state=seed,
+    )
+    print(f"Data split: {len(train_df)} train, {len(val_df)} val, {len(test_df)} test.")
+
+
 
     mlb = MultiLabelBinarizer(classes=sorted(CANON_KEYS))
     Y_train = mlb.fit_transform(train_df["TagsList"])
