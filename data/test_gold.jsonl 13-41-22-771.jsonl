@@ -1,0 +1,4 @@
+{"post": "I'm anxious before the exam.", "intent": "Cause of Distress", "concern": "Medium"}
+{"post": "I feel heartbroken as my boyfriend dumped me.", "intent": "Positive Coping", "concern": "Low"}
+{"post": "I am stressed for an event.", "intent": "Mental Distress", "concern": "Medium"}
+{"post": "I feel like killing myself.", "intent": "Crisis", "concern": "High"}
