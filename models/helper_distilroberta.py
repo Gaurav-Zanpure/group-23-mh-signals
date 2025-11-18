@@ -67,22 +67,33 @@ def read_split_csv(p: Path):
         df = df.rename(columns={"Text": "Post"})
     if "Post" not in df.columns:
         raise ValueError(f"'Post' column missing in {p}")
-    if "Tag" not in df.columns:
+    if "Final_Tags" not in df.columns:
         raise ValueError(f"'Tag' column missing in {p}")
 
     df["Post"] = df["Post"].fillna("").astype(str)
 
     def to_canonical_list(x):
-        raw = [] if isinstance(x, float) and math.isnan(x) else re.split(r"[;,]", str(x))
+        if isinstance(x, float) and math.isnan(x):
+            return ["Miscellaneous"]
+
+        s = str(x).strip()
+
+        # Remove [] brackets
+        s = s.strip("[]")
+
+        # Split only on commas separating list elements
+        parts = [p.strip().strip("'").strip('"') for p in s.split(",") if p.strip()]
+
         norm, seen = [], set()
-        for r in raw:
+        for r in parts:
             can = _normalize_tag(r)
             if can and can not in seen:
                 norm.append(can)
                 seen.add(can)
+
         return norm if norm else ["Miscellaneous"]
 
-    df["TagsList"] = df["Tag"].apply(to_canonical_list)
+    df["TagsList"] = df["Final_Tags"].apply(to_canonical_list)
     return df[["Post", "TagsList"]]
 
 

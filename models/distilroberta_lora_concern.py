@@ -21,7 +21,7 @@ from transformers import (
 )
 from peft import LoraConfig, get_peft_model
 from datasets import Dataset
-from .helper_distilroberta import (
+from helper_distilroberta import (
     set_seed,
     load_yaml,
     ensure_dir,

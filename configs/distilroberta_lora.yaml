@@ -41,8 +41,8 @@ lora:
 training:
   seed: 42
   threshold: 0.25
-  epochs: 10
-  train_batch_size: 8
+  epochs: 20
+  train_batch_size: 10
   eval_batch_size: 32
   learning_rate: 1e-4
   weight_decay: 0.01
