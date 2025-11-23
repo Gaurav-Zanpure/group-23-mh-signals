@@ -2,6 +2,9 @@
 venv/
 env/
 ENV/
+.venv311/*
+.cache/*
+*.env
 *.pyvenv.cfg
 
 .DS_Store
@@ -26,3 +29,5 @@ hf_cache/
 *.ckpt
 
 models/__pycache__/
+
+.DS_Store

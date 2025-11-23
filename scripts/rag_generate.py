@@ -16,6 +16,7 @@ import os
 import json
 import argparse
 import warnings
+import re
 
 # --- safety / stability knobs (set before heavy imports) ---
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
@@ -51,9 +52,13 @@ def retrieve(meta, index, encoder, post, intents=None, concern=None, topk=40, ke
         m = meta[idx]
         ok = True
         if want_intents:
-            ok = any(w in (m.get("intent", "").lower()) for w in want_intents)
-        if ok and want_concern:
-            ok = (m.get("concern", "").lower() == want_concern)
+            if not any(w in m.get("intent", "").lower() for w in want_intents):
+                # only demote score, don't drop the snippet
+                m["score"] *= 1.05  
+        if want_concern:
+            if m.get("concern", "").lower() != want_concern:
+                # softly downrank, don't drop
+                m["score"] *= 1.05
         if ok:
             out.append({
                 "rank": len(out) + 1,
@@ -65,28 +70,69 @@ def retrieve(meta, index, encoder, post, intents=None, concern=None, topk=40, ke
     return out
 
 
-def build_prompt(post, intents, concern, snippets):
+def build_prompt(post, intents, concern, snippets, max_prompt_chars=2000):
     """
-    Flan-T5 style instruction prompting. Keeps the model general, safe, and grounded.
+    SAFE RAG prompt: Model sees only ABSTRACT emotional signals.
+    Prevents sympathy clichés, generic advice, or repetition.
+    
+    FIX: Added crucial instruction to prevent first-person phrases like 'I can relate'.
     """
-    header = (
-        "You are a supportive peer (not a clinician). Be warm, concise (<=140 words), "
-        "and base your reply ONLY on the provided snippets. Do NOT diagnose or give "
-        "medical instructions. Offer 1–2 coping ideas. If concern is High or the post "
-        "suggests self-harm, add a short crisis note at the end.\n\n"
+
+    # Abstract emotional labels (never direct words)
+    def abstract_theme(text):
+        t = text.lower()
+        label = []
+
+        if any(w in t for w in ["hurt", "pain", "break", "heart", "cry"]):
+            label.append("intense emotional struggle")
+        if any(w in t for w in ["anxiety", "panic", "fear"]):
+            label.append("inner tension")
+        if any(w in t for w in ["lost", 'confused', 'overwhelmed']):
+            label.append("uncertainty")
+        if any(w in t for w in ["alone", "lonely", "isolated"]):
+            label.append("feeling disconnected")
+        if any(w in t for w in ["guilt", "regret", "blame"]):
+            label.append("self-judgment")
+        if any(w in t for w in ["support", "help", "cope"]):
+            label.append("desire for relief")
+        if any(w in t for w in ["trauma", "ptsd"]):
+            label.append("distress from past experiences")
+
+        if not label:
+            return "general inner difficulty"
+
+        # Return single abstract signal (prevents list-like tone)
+        return " and ".join(label[:1])
+
+    themes = [abstract_theme(s["text"]) for s in snippets]
+
+    # Instead of listing themes → blend them into 1 abstract signal
+    combined_emotion = ", ".join(set(themes))
+
+    # USER POST FIRST (important)
+    post_block = f"User Post:\n{post}\n\n"
+
+    # Abstract emotional signal (NO LISTS, NO BULLETS)
+    theme_block = (
+        f"Underlying emotional cues from similar situations (use as intuition only): "
+        f"{combined_emotion}.\n\n"
     )
-    det = f"User post:\n{post}\n\nDetected: intents={intents}; concern={concern}\n\n"
-    cites = "Retrieved snippets:\n" + "\n".join(
-        f"[S{i+1}] {s['text']}" for i, s in enumerate(snippets)
-    ) + "\n\n"
-    task = (
-        "Write ONE empathetic reply that:\n"
-        "1) Validates feelings\n"
-        "2) Gives 1–2 grounded suggestions using [S#]\n"
-        "3) Adds a brief crisis note ONLY if appropriate\n\n"
+
+    instructions = (
+        "Write a supportive peer response in 4–6 natural sentences. "
+        "Be warm, steady, and human. "
+        "Crucially, write as a supportive listener; DO NOT use first-person phrases that imply personal feeling or experience, like 'I understand', 'I can relate', or 'I know how you feel'. "
+        "Do NOT copy the user’s wording or imitate their structure. "
+        "Your reply MUST IMMEDIATELY become unique, meaningful, and specific to the post. "
+        "Do NOT use phrases like 'thoughts and prayers', 'thank you for sharing', or 'best of luck'. "
+        "Do NOT mention themes, context, symptoms, or give clinical advice. "
+        "Do NOT be generic or dismissive. "
+        "Simply help them feel understood and a little less alone.\n\n"
         "Reply:\n"
     )
-    return header + det + cites + task
+
+    prompt = instructions + post_block + theme_block
+    return prompt[:max_prompt_chars].strip()
 
 
 def crisis_footer_needed(post, concern):
@@ -106,7 +152,7 @@ def main():
     ap.add_argument("--post", required=True, help="User post text.")
     ap.add_argument("--intents", nargs="*", default=None, help="Optional predicted intents (soft filter).")
     ap.add_argument("--concern", default=None, help="Optional predicted concern (Low/Medium/High).")
-    ap.add_argument("--keep", type=int, default=5, help="How many snippets to keep for the prompt.")
+    ap.add_argument("--keep", type=int, default=3, help="How many snippets to keep for the prompt.")
     ap.add_argument("--topk", type=int, default=40, help="How many neighbors to fetch before filtering.")
     # enc / gen models
     ap.add_argument("--enc_model", default="sentence-transformers/all-MiniLM-L6-v2",
@@ -167,17 +213,81 @@ def main():
 
     in_ids = tok(prompt, return_tensors="pt", truncation=True).input_ids.to(device)
 
-    # Deterministic by default (no temperature warning, no sampling)
+    # --------------------- HIGH-QUALITY GENERATION SETTINGS ---------------------
+    gen_kwargs = {
+            "max_new_tokens": args.max_new_tokens,
+            "min_length": 80,                    # enforce at least 4–6 sentences
+            "max_length": 380,                   # total token budget including input
+            "length_penalty": 1.0,               # encourages longer replies
+            "repetition_penalty": 1.35,
+            "no_repeat_ngram_size": 3,
+            "early_stopping": True,
+            "num_beams": 4,
+            # FIX: Increased from 1.1 to 1.3 to more strongly penalize paraphrasing of the input post
+            "encoder_repetition_penalty": 1.3, 
+            "eos_token_id": tok.eos_token_id,
+            "pad_token_id": tok.eos_token_id,
+    }
+
     if args.do_sample:
-        gen_ids = mdl.generate(
-            in_ids,
-            max_new_tokens=args.max_new_tokens,
-            do_sample=True,
-            temperature=args.temperature,
-            top_p=args.top_p,
-        )
-    else:
-        gen_ids = mdl.generate(in_ids, max_new_tokens=args.max_new_tokens)
+        gen_kwargs.update({
+            "do_sample": True,
+            "temperature": args.temperature,
+            "top_p": args.top_p,
+            "num_beams": 1
+        })
+
+    # --- FIX: Enforce prompt instructions by banning cliches and first-person phrases ---
+    
+    # 1. Ban user's own words (long words only)
+    bad_words = []
+    user_words = re.findall(r"\b\w+\b", args.post.lower())
+    for w in user_words:
+        if len(w) > 4:
+            # Tokenize and add as a sequence to ban
+            try:
+                bad_words.append(tok(w, add_special_tokens=False).input_ids)
+            except Exception:
+                pass
+    
+    # 2. Block sympathy clichés and banned first-person phrases (from prompt instructions)
+    banned_phrases = [
+        "thoughts and prayers", 
+        "thank you for sharing", 
+        "best of luck", 
+        "prayers", "bless", "thank", "sharing", "best of luck", # single-word components
+        "I can relate", "I know what you are going through", "I know how you feel",
+        "I'm sorry to hear that", "I hope you feel better soon", "I understand your pain",
+        "I can relate to that feeling",
+        "great role model", 
+        "Keep up the good work", 
+        "I wish you the best in your future endeavors",
+        # --- FIX: Ban new feeling-related phrases ---
+        "I know what you're feeling",
+        "I've been there, too",
+        "I know how it feels to feel like",
+        # --- FIX: Ban generic advice phrases ---
+        "but it's worth it in the long run",
+        "It's not easy, but it's worth it in the long run",
+        "it's worth it in the long run"
+    ]
+    
+    for banned in banned_phrases:
+        try:
+            # Tokenize each phrase into its components and add the list of token IDs
+            banned_token_ids = tok(banned, add_special_tokens=False).input_ids
+            # Only ban multi-token phrases to avoid over-blocking common single tokens (like 'I' or 'to')
+            if len(banned_token_ids) > 1:
+                bad_words.append(banned_token_ids)
+        except Exception:
+            pass
+
+    if bad_words:
+        gen_kwargs["bad_words_ids"] = bad_words
+    # ----------------------------------------------------------------------------------
+
+    gen_ids = mdl.generate(in_ids, **gen_kwargs)
+    # ---------------------------------------------------------------------------
 
     reply = tok.decode(gen_ids[0], skip_special_tokens=True)
 
