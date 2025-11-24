@@ -165,7 +165,7 @@ def main():
     ap.add_argument("--temperature", type=float, default=0.7, help="Used only if --do-sample is set.")
     ap.add_argument("--top_p", type=float, default=0.9, help="Used only if --do-sample is set.")
     # device
-    ap.add_argument("--device", choices=["cpu", "mps"], default="cpu",
+    ap.add_argument("--device", choices=["cpu", "mps", "cuda"], default="cpu",
                     help="Computation device. Start with CPU for stability on macOS.")
     args = ap.parse_args()
 
