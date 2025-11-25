@@ -11,7 +11,7 @@ echo "Current directory: $(pwd)"
 # --- Create + Activate Virtual Environment ---
 echo "===== Setting up virtual environment ====="
 
-if [ ! -d ".venv31" ]; then
+if [ ! -d ".venv11" ]; then
     echo "No venv found — creating a new one..."
     python3 -m venv .venv311
     source .venv311/bin/activate
