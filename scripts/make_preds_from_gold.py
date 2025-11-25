@@ -100,7 +100,7 @@ def main():
     ap.add_argument("--out", required=True, help="output predictions jsonl")
     ap.add_argument("--config", required=True, help="RAG config YAML")
     ap.add_argument("--gen_model", default="google/flan-t5-large")
-    ap.add_argument("--device", choices=["cpu", "mps"], default="cpu")
+    ap.add_argument("--device", choices=["cpu", "mps","cuda"], default="cpu")
     ap.add_argument(
         "--timeout",
         type=int,
