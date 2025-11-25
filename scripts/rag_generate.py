@@ -78,60 +78,102 @@ def build_prompt(post, intents, concern, snippets, max_prompt_chars=2000):
     FIX: Added crucial instruction to prevent first-person phrases like 'I can relate'.
     """
 
-    # Abstract emotional labels (never direct words)
-    def abstract_theme(text):
-        t = text.lower()
-        label = []
+    # # Abstract emotional labels (never direct words)
+    # def abstract_theme(text):
+    #     t = text.lower()
+    #     label = []
 
-        if any(w in t for w in ["hurt", "pain", "break", "heart", "cry"]):
-            label.append("intense emotional struggle")
-        if any(w in t for w in ["anxiety", "panic", "fear"]):
-            label.append("inner tension")
-        if any(w in t for w in ["lost", 'confused', 'overwhelmed']):
-            label.append("uncertainty")
-        if any(w in t for w in ["alone", "lonely", "isolated"]):
-            label.append("feeling disconnected")
-        if any(w in t for w in ["guilt", "regret", "blame"]):
-            label.append("self-judgment")
-        if any(w in t for w in ["support", "help", "cope"]):
-            label.append("desire for relief")
-        if any(w in t for w in ["trauma", "ptsd"]):
-            label.append("distress from past experiences")
+    #     if any(w in t for w in ["hurt", "pain", "break", "heart", "cry"]):
+    #         label.append("intense emotional struggle")
+    #     if any(w in t for w in ["anxiety", "panic", "fear"]):
+    #         label.append("inner tension")
+    #     if any(w in t for w in ["lost", 'confused', 'overwhelmed']):
+    #         label.append("uncertainty")
+    #     if any(w in t for w in ["alone", "lonely", "isolated"]):
+    #         label.append("feeling disconnected")
+    #     if any(w in t for w in ["guilt", "regret", "blame"]):
+    #         label.append("self-judgment")
+    #     if any(w in t for w in ["support", "help", "cope"]):
+    #         label.append("desire for relief")
+    #     if any(w in t for w in ["trauma", "ptsd"]):
+    #         label.append("distress from past experiences")
 
-        if not label:
-            return "general inner difficulty"
+    #     if not label:
+    #         return "general inner difficulty"
 
-        # Return single abstract signal (prevents list-like tone)
-        return " and ".join(label[:1])
+    #     # Return single abstract signal (prevents list-like tone)
+    #     return " and ".join(label[:1])
 
-    themes = [abstract_theme(s["text"]) for s in snippets]
+    # themes = [abstract_theme(s["text"]) for s in snippets]
 
-    # Instead of listing themes → blend them into 1 abstract signal
-    combined_emotion = ", ".join(set(themes))
+    # # Instead of listing themes → blend them into 1 abstract signal
+    # combined_emotion = ", ".join(set(themes))
 
     # USER POST FIRST (important)
     post_block = f"User Post:\n{post}\n\n"
 
     # Abstract emotional signal (NO LISTS, NO BULLETS)
-    theme_block = (
-        f"Underlying emotional cues from similar situations (use as intuition only): "
-        f"{combined_emotion}.\n\n"
-    )
+    # theme_block = (
+    #     f"Underlying emotional cues from similar situations (use as intuition only): "
+    #     f"{combined_emotion}.\n\n"
+    # )
 
+    # GROUNDING CONTEXT (Retained Snippets - Crucial)
+    # The model will use the text of these similar posts for factual grounding.
+    context_block = "The following snippets are from similar experiences and are provided for factual grounding only. Do NOT cite them directly. Use them to inform the tone and suggestions:\n"
+    for s in snippets:
+        context_block += f"- {s['text']}\n"
+    context_block += "\n"
+
+    # instructions = (
+    #     "Write a concise, emotionally-safe response in **3–4 sentences**. "
+    #     "Use a neutral, grounded tone – not warm, intimate, or overly reassuring. "
+    #     "Do NOT say: 'I understand', 'I know how you feel', 'I'm sorry', 'you are not alone', "
+    #     "'stay strong', or any other empathy cliché, reassurance, or encouragement. "
+    #     "Do NOT use first person to talk about yourself. "
+    #     "Do NOT give clinical, diagnostic, or medical advice. "
+    #     "\n\n"
+
+    #     "Your reply must follow this structure:"
+    #     "\n"
+    #     "1) **Acknowledge** the user's experience without assuming their feelings and without using 'I'. \n"
+    #     "2) Describe what seems difficult based on the specific details in the post. \n"
+    #     "3) If risk is LOW or MEDIUM: offer 1-2 gentle, practical next steps that may help them cope. \n"
+    #     "4) If the post suggests self-harm or danger: do NOT give suggestions; instead gently encourage reaching out to emergency services or a crisis hotline. \n"
+    #     "\n\n"
+
+    #     "Use calm, clear, specific language. Avoid emotional clichés. Focus on the facts of the user's experience. "
+    #     "Do NOT give emotional clichés, comfort phrases, or personal sharing. "
+    #     "\n\nReply:\n"
+    # )
+    # Revised Instructions
     instructions = (
-        "Write a supportive peer response in 4–6 natural sentences. "
-        "Be warm, steady, and human. "
-        "Crucially, write as a supportive listener; DO NOT use first-person phrases that imply personal feeling or experience, like 'I understand', 'I can relate', or 'I know how you feel'. "
-        "Do NOT copy the user’s wording or imitate their structure. "
-        "Your reply MUST IMMEDIATELY become unique, meaningful, and specific to the post. "
-        "Do NOT use phrases like 'thoughts and prayers', 'thank you for sharing', or 'best of luck'. "
-        "Do NOT mention themes, context, symptoms, or give clinical advice. "
-        "Do NOT be generic or dismissive. "
-        "Simply help them feel understood and a little less alone.\n\n"
+        "You are a helpful and neutral mental health resource, not a therapist. "
+        "Your task is to provide a grounded, emotionally safe response. "
+        "\n\n"
+
+        # "Always begin your reply with a complete, natural-sounding first sentence starting with a capital letter. "
+        "Never start a partial word, suffix, dash, or anything that is not a complete sentence. "
+        "Always base your reply ONLY on the provided snippets. "
+        "\n\n"
+
+        "**Instructions for Reply (Aim for 3-5 Sentences):**"
+        "\n"
+        "1) **Acknowledge and Validate:** Begin by recognizing the difficulty of the situation described. Use neutral language (e.g., 'The experience of X sounds incredibly challenging'). \n"
+        "2) **Ground in Details:** Briefly reference the specific factual elements of the post (e.g., 'Dealing with grief, academic stress, and social rejection all at once'). \n"
+        "3) **Offer Practical Next Steps:** Suggest 1-2 gentle, practical steps focused on coping, self-care, or accessing support. \n"
+        "4) **Maintain a Neutral Persona:** Absolutely do NOT use first person to talk about yourself, share personal stories, give reassurance clichés, or use overly warm/intimate language. Do NOT offer clinical or diagnostic advice."
+        "\n\n"
+
+        "**Banned Phrases (Do not use):** I understand, I know how you feel, I can relate, I'm sorry to hear that, I've been there, I went through, I'm here for you, stay strong, you've got this, praying for you, I can relate to."
+        "\n\n"
+
         "Reply:\n"
     )
 
-    prompt = instructions + post_block + theme_block
+    forced_start_phrase = "Response: The experience you are describing"
+
+    prompt = instructions + context_block + post_block + forced_start_phrase
     return prompt[:max_prompt_chars].strip()
 
 
@@ -160,7 +202,7 @@ def main():
     ap.add_argument("--gen_model", default="google/flan-t5-base",
                     help="Generator model (e.g., 'google/flan-t5-small' for CPU).")
     # generation controls
-    ap.add_argument("--max_new_tokens", type=int, default=180)
+    ap.add_argument("--max_new_tokens", type=int, default=200)
     ap.add_argument("--do-sample", action="store_true", help="Enable sampling; otherwise deterministic.")
     ap.add_argument("--temperature", type=float, default=0.7, help="Used only if --do-sample is set.")
     ap.add_argument("--top_p", type=float, default=0.9, help="Used only if --do-sample is set.")
@@ -216,15 +258,16 @@ def main():
     # --------------------- HIGH-QUALITY GENERATION SETTINGS ---------------------
     gen_kwargs = {
             "max_new_tokens": args.max_new_tokens,
-            "min_length": 80,                    # enforce at least 4–6 sentences
-            "max_length": 380,                   # total token budget including input
+            "min_length": 40,                    # enforce at least 4–6 sentences
+            "max_length": 400,                   # total token budget including input
             "length_penalty": 1.0,               # encourages longer replies
-            "repetition_penalty": 1.35,
-            "no_repeat_ngram_size": 3,
+            "repetition_penalty": 3.0,
+            "no_repeat_ngram_size": 4,
             "early_stopping": True,
             "num_beams": 4,
+            "do_sample": False,
             # FIX: Increased from 1.1 to 1.3 to more strongly penalize paraphrasing of the input post
-            "encoder_repetition_penalty": 1.3, 
+            "encoder_repetition_penalty": 2.5, 
             "eos_token_id": tok.eos_token_id,
             "pad_token_id": tok.eos_token_id,
     }
@@ -252,30 +295,17 @@ def main():
     
     # 2. Block sympathy clichés and banned first-person phrases (from prompt instructions)
     banned_phrases = [
-        "thoughts and prayers", 
-        "thank you for sharing", 
-        "best of luck", 
-        "prayers", "bless", "thank", "sharing", "best of luck", # single-word components
-        "I can relate", "I know what you are going through", "I know how you feel",
-        "I'm sorry to hear that", "I hope you feel better soon", "I understand your pain",
-        "I can relate to that feeling",
-        "great role model", 
-        "Keep up the good work", 
-        "I wish you the best in your future endeavors",
-        # --- FIX: Ban new feeling-related phrases ---
-        "I know what you're feeling",
-        "I've been there, too",
-        "I know how it feels to feel like",
-        # --- FIX: Ban generic advice phrases ---
-        "but it's worth it in the long run",
-        "It's not easy, but it's worth it in the long run",
-        "it's worth it in the long run"
+        "i understand", "i know how you feel", "i can relate",
+        "i've been there", "i went through", "i'm sorry to hear that",
+        "stay strong", "you've got this", "keep going", "it will get better",
+        "i love you", "love you", "praying for you", "bless you", "god bless",
+        "i'm proud of you", "i'm happy for you",
     ]
     
     for banned in banned_phrases:
         try:
             # Tokenize each phrase into its components and add the list of token IDs
-            banned_token_ids = tok(banned, add_special_tokens=False).input_ids
+            banned_token_ids = tok(banned.lower(), add_special_tokens=False).input_ids
             # Only ban multi-token phrases to avoid over-blocking common single tokens (like 'I' or 'to')
             if len(banned_token_ids) > 1:
                 bad_words.append(banned_token_ids)
@@ -297,6 +327,20 @@ def main():
             "\n\nIf you’re in immediate danger, please contact local emergency services or a trusted person nearby. "
             "If you can, consider reaching out to a crisis line in your region."
         )
+    
+
+    def needs_regeneration(text):
+        t = text.strip()
+        if not t:
+            return True
+        # Must begin with A-Z (English clean sentence start)
+        if not re.match(r"[A-Z]", t[0]):
+            return True
+        return False
+
+    if needs_regeneration(reply):
+        gen_ids = mdl.generate(in_ids, **gen_kwargs)
+        reply = tok.decode(gen_ids[0], skip_special_tokens=True).strip()
 
     # Output JSON (includes citations)
     print(json.dumps({
