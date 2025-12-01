@@ -6,7 +6,8 @@ ENV/
 .cache/*
 *.env
 *.pyvenv.cfg
-
+bin 
+lib/*
 .DS_Store
 Thumbs.db
 .ipynb_checkpoints/
