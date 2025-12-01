@@ -68,7 +68,7 @@ def norm_concern(val: str):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("-c", "--config", default="configs/data.yaml")
-    ap.add_argument("--csv", help="Override CSV path (else uses paths.raw_csv)")
+    ap.add_argument("--csv", help="Override CSV path (else uses paths.processed_csv)")
     args = ap.parse_args()
 
     # Load YAML
@@ -77,7 +77,7 @@ def main():
     kb_cfg = cfg.get("kb", {})
 
     # Defaults to file/columns if not in YAML
-    csv_path = args.csv or paths.get("raw_csv") or "data/raw/kb/rag_intent_data_w_concern.csv"
+    csv_path = args.csv or paths.get("processed_csv") or "data/raw/kb/rag_intent_data_w_concern.csv"
 
     processed_dir = kb_cfg.get(
         "processed_dir",
