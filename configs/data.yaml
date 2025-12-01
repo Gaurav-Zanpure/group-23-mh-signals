@@ -1,6 +1,7 @@
 seed: 42
 paths:
-  raw_csv: data/raw/kb/rag_intent_data_w_concern.csv
+  raw_csv: data/raw/final/mh_signal_data_w-concern-intent.csv
+  processed_csv: data/raw/kb/rag_intent_data_w_concern.csv
   splits_dir: data/splits
   processed_dir: data/processed
   results_dir: results
