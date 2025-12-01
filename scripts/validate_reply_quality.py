@@ -144,9 +144,14 @@ def main():
             item = json.loads(line)
 
             post = item["post"]
-            rag = item.get("rag_output", {})
-            reply = rag.get("reply", "")
-            snippets = rag.get("citations", [])
+            # Prefer new format, else fall back to old format
+            if "rag_output" in item:
+                reply = item["rag_output"].get("reply", "")
+                snippets = item["rag_output"].get("citations", [])
+            else:
+                reply = item.get("reply", "")
+                snippets = item.get("citations", [])
+
 
             # =====================================================
             # Scores
