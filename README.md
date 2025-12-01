@@ -8,17 +8,22 @@ It benchmarks multiple modeling strategies — **MiniLM + Logistic Regression**,
 ## Repository Structure
 
 ```
-configs/              # YAML configs (data.yaml + per-model configs)
+configs/                  # YAML configs (data.yaml + per-model configs)
 data/
-  raw/                # raw CSV files
-  processed/          # cleaned + tagged datasets
-  splits/             # train/val/test CSVs
-models/               # training scripts per model
+  raw/                    # raw CSV files
+  raw/kb                  # raw CSV for KB after adding intent + concern tags
+  processed/              # cleaned + tagged datasets
+  processed/kb            # KB embeddings, metadata, snippets and faiss index
+  splits/                 # train/val/test CSVs
+  splits/test_gold.jsonl  # rag validation inputs
+  splits/test_pred.jsonl  # rag validation predictions
+models/                   # training scripts per model
 results/
-  runs/               # checkpoints, logs, predictions
-  tables/             # summary CSVs
-scripts/              # tagging + summaries
-utils/                # helper functions
+  runs/                   # checkpoints, logs, predictions
+  tables/                 # summary CSVs
+scripts/                  # tagging + summaries + kb creation + generation + validation
+utils/                    # helper functions
+logs/                     # Logs for general and high risk inputs to RAG
 ```
 
 ---
@@ -169,6 +174,150 @@ Each run is self-contained, ensuring reproducibility.
 * Each model’s YAML fully defines its setup.
 * Data splits are consistent across models.
 * Results automatically save under `results/runs/`.
+
+---
+
+## RAG (Retrieval-Augmented Generation)
+
+### Overview
+
+The RAG system retrieves relevant counselor responses from a knowledge base and generates empathetic, grounded replies to mental health posts. It includes:
+
+- **Knowledge Base Creation:** Embedding and indexing counselor responses
+- **Generation:** Flan-T5-based reply generation with safety checks
+- **Validation:** Quality evaluation of generated responses
+
+### Prerequisites
+
+1. **Build the Knowledge Base** (one-time setup):
+
+```bash
+python scripts/kb_build.py --config configs/data.yaml
+```
+
+This creates:
+- `data/processed/kb/kb_snippets.jsonl` (chunked responses)
+- `data/processed/kb/kb_embeddings.npy` (embeddings)
+- `data/processed/kb/kb.faiss` (FAISS index)
+- `data/processed/kb/kb_meta.jsonl` (metadata)
+
+### Generating Responses
+
+#### Single Post Generation
+
+```bash
+python scripts/rag_generate.py \
+  --config configs/data.yaml \
+  --post "I can't focus before my exams and I'm panicking." \
+  --concern High \
+  --keep 3 \
+  --gen_model google/flan-t5-xl \
+  --device mps
+```
+
+**Parameters:**
+- `--post`: User's mental health post (required)
+- `--concern`: Predicted concern level (Low/Medium/High), optional
+- `--intents`: Space-separated intent tags, optional
+- `--keep`: Number of KB snippets to retrieve (default: 3)
+- `--topk`: Number of candidates before filtering (default: 50)
+- `--gen_model`: Generator model (default: `google/flan-t5-xl`)
+- `--device`: Device for generation (`mps`, `cuda`, or `cpu`)
+- `--max_new_tokens`: Max tokens to generate (default: 400)
+
+**Output (JSON):**
+```json
+{
+  "post": "...",
+  "crisis_level": "none",
+  "citations": [...],
+  "reply": "...",
+  "disclaimer": "..."
+}
+```
+
+#### Full Test Set Generation
+
+Generate predictions for the entire test set (or a large batch):
+
+```bash
+python scripts/make_preds_from_gold.py \
+  --gold data/splits/test_gold.jsonl \
+  --out data/splits/test_pred.jsonl \
+  --config configs/data.yaml \
+  --gen_model google/flan-t5-xl \
+  --device mps \
+  --timeout 180
+```
+
+**Key Parameters:**
+- `--gold`: Input JSONL file with `{post, intent, concern}` format (required)
+- `--out`: Output predictions JSONL file (required)
+- `--config`: Path to data.yaml configuration (required)
+- `--gen_model`: Generator model (default: `google/flan-t5-large`)
+- `--device`: Device for generation (`cpu`, `mps`, or `cuda`)
+- `--timeout`: Per-post timeout in seconds (default: 180, set to 0 for no timeout)
+- `--sleep_between`: Delay between posts in seconds (default: 0.0)
+- `--max_rows`: Limit number of posts to process (default: 0 = all)
+- `--start_row`: Starting row for resumption (1-based index, default: 1)
+
+**Features:**
+- **Automatic truncation:** Long posts are truncated to 900 characters to prevent timeouts
+- **Robust error handling:** Failed posts are logged but don't stop the batch
+- **Streaming output:** Results are written incrementally (resumable if interrupted)
+- **Progress tracking:** Prints status every 25 posts
+- **Timeout protection:** Prevents individual posts from hanging indefinitely
+
+**Output Format (JSONL):**
+```json
+{
+  "post": "...",
+  "predicted_intents": "Mental Distress",
+  "predicted_concern": "High",
+  "reply": "...",
+  "citations": [...]
+}
+```
+
+**Example: Resume from Row 100**
+```bash
+python scripts/make_preds_from_gold.py \
+  --gold data/splits/test_gold.jsonl \
+  --out data/splits/test_pred.jsonl \
+  --config configs/data.yaml \
+  --gen_model google/flan-t5-xl \
+  --device mps \
+  --start_row 100 \
+  --max_rows 50
+```
+
+This processes rows 100-149, useful for resuming interrupted batches or parallel processing.
+
+### Validating Response Quality
+
+Evaluate the quality of generated responses using multiple metrics:
+
+```bash
+python scripts/validate_reply_quality.py \
+  --pred data/splits/sample_rag_output.jsonl \
+  --enc sentence-transformers/all-MiniLM-L6-v2
+```
+
+**Evaluation Metrics:**
+
+1. **Relevance** (30%): Semantic similarity between post and reply
+2. **Grounding** (45%): How well the reply uses KB snippets (semantic + lexical overlap)
+3. **Safety** (20%): Absence of harmful content or dangerous advice
+4. **Crisis Coverage** (5%): Appropriate crisis resources when needed
+
+### Logs
+
+All RAG interactions are logged for review:
+
+- **General:** `logs/general_YYYYMMDD.jsonl`
+- **High-risk:** `logs/high_risk_YYYYMMDD.jsonl`
+
+Each log entry includes post hash, reply hash, crisis level, and timestamp for auditing.
 
 ---
 
