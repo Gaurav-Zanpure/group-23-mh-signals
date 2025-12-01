@@ -3,12 +3,12 @@ pyyaml==6.0.3
 scikit-learn==1.7.2
 numpy==1.26.3
 tqdm==4.67.1
-transformers==4.57.1      # Upgraded for Torch 2.5 compatibility
+transformers==4.57.1      
 torch==2.5.1
-sentence-transformers==5.1.2  # Upgraded for Torch 2.5 compatibility
-peft==0.18.0              # Upgraded to match Transformers
+sentence-transformers==5.1.2  
+peft==0.18.0              
 evaluate==0.4.6
-faiss-gpu>=1.7.2          # Relaxed to allow newer builds for CUDA 12
+faiss-gpu>=1.7.2          
 pillow==11.0.0
 sentencepiece==0.2.0
 huggingface_hub==0.25.2
