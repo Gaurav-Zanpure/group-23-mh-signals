@@ -2,8 +2,12 @@
 venv/
 env/
 ENV/
+.venv311/*
+.cache/*
+*.env
 *.pyvenv.cfg
-
+bin 
+lib/*
 .DS_Store
 Thumbs.db
 .ipynb_checkpoints/
@@ -26,3 +30,5 @@ hf_cache/
 *.ckpt
 
 models/__pycache__/
+
+.DS_Store
