@@ -1,0 +1,16 @@
+{
+  "macro_f1": 0.697739609569837,
+  "micro_f1": 0.7363717605004468,
+  "pr_auc_macro": 0.7586737064351939,
+  "per_label_f1": {
+    "Cause of Distress": 0.7950920245398773,
+    "Critical Risk": 0.7966457023060797,
+    "Maladaptive Coping": 0.6566666666666666,
+    "Mental Distress": 0.8269410664172123,
+    "Miscellaneous": 0.44680851063829785,
+    "Mood Tracking": 0.797270955165692,
+    "Positive Coping": 0.5035294117647059,
+    "Progress Update": 0.750561797752809,
+    "Seeking Help": 0.706140350877193
+  }
+}

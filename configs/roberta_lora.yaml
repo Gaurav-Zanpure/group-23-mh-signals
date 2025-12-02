@@ -13,9 +13,9 @@ model:
 # LoRA (Low-Rank Adaptation) configuration
 lora:
   # The dimension of the low-rank matrices
-  r: 16
+  r: 32
   # The alpha parameter for LoRA scaling
-  lora_alpha: 32
+  lora_alpha: 64
   # The dropout probability for LoRA layers
   lora_dropout: 0.1
   # Modules to apply LoRA to. For RoBERTa, 'query' and 'value' are common choices.
@@ -32,7 +32,9 @@ training:
   # Decision threshold for converting probabilities to binary predictions
   threshold: 0.25
   # Number of training epochs
-  epochs: 8
+  epochs: 10
+  # Gamma parameter for Focal Loss
+  gamma: 2.0
   # Batch size for training
   train_batch_size: 8
   # Batch size for evaluation

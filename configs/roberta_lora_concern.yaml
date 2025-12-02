@@ -11,8 +11,8 @@ model:
 
 # LoRA (Low-Rank Adaptation) configuration
 lora:
-  r: 16
-  lora_alpha: 32
+  r: 32
+  lora_alpha: 64
   lora_dropout: 0.1
   target_modules:
     - "query"
@@ -23,7 +23,7 @@ lora:
 # Training hyperparameters
 training:
   seed: 42
-  epochs: 8
+  epochs: 10
   train_batch_size: 8
   eval_batch_size: 32
   learning_rate: 1e-4
