@@ -78,7 +78,7 @@ def run_once(post, config, gen_model, device, timeout=120):
 
 
 def normalize_label(x):
-    """Force labels to simple strings; handle list/None."""
+    """Force labels to simple strings; handle list/None values."""
     if x is None:
         return None
     if isinstance(x, list):
@@ -93,6 +93,13 @@ def normalize_label(x):
 
 
 def main():
+    """
+    Streams gold JSONL (posts with ground truth labels) and generates RAG predictions.
+    Normalize predicted intent/concern labels.
+    Writes to output JSONL file.
+    Support resume via --start_row and limit via --max_rows.
+    Prints progress and summary stats.
+    """
     ap = argparse.ArgumentParser(
         description="Generate predictions from gold posts using rag_generate.py (robust)."
     )

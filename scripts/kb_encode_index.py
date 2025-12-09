@@ -7,6 +7,7 @@ import numpy as np
 import yaml
 from sentence_transformers import SentenceTransformer
 
+# Load JSONL file as a generator of dicts
 def load_jsonl(path):
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
@@ -14,6 +15,12 @@ def load_jsonl(path):
                 yield json.loads(line)
 
 def main():
+    """
+    Loads config to find kb_snippets.jsonl, encodes with SentenceTransformer into dense vectors 384-dim
+    Normalize embeddings for cosine similarity search
+    Saves embeddings as .npy and builds FAISS HNSW index for fast retrieval
+    Writes FAISS index to disk for fast retrieval
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("-c", "--config", default="configs/data.yaml")
     ap.add_argument("--model", default="sentence-transformers/all-MiniLM-L6-v2")

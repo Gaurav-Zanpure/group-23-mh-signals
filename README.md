@@ -319,6 +319,19 @@ All RAG interactions are logged for review:
 
 Each log entry includes post hash, reply hash, crisis level, and timestamp for auditing.
 
+**RAG System Architecture Summary**
+
+1. Build Phase (kb_build.py → kb_encode_index.py):
+CSV → Chunked JSONL → Embeddings → FAISS index
+
+2. Retrieval Phase (kb_search.py / retrieve() in rag_generate.py):
+Query → Encode → FAISS search → Filter by intent/concern → Ranked snippets
+
+3. Generation Phase (rag_generate.py):
+Snippets + Post → Prompt → Flan-T5 → Validated Reply + Crisis Resources
+
+4. Evaluation Phase (validate_reply_quality.py):
+Relevance + Grounding + Safety + Crisis Coverage → Letter Grade
 ---
 
 **Team Members:**  

@@ -18,6 +18,7 @@ def sentish_split(text: str):
     return [p.strip() for p in parts if p.strip()]
 
 def chunk_text(text: str, target_tokens: int = 140, min_chars: int = 20):
+    """Break long text into chunks of ~target_tokens using sentence boundaries"""
     tokens = lambda s: len(s.split())
     sents = sentish_split(text)
     if not sents:
@@ -51,7 +52,7 @@ def chunk_text(text: str, target_tokens: int = 140, min_chars: int = 20):
     return chunks
 
 def norm_concern(val: str):
-    """Normalize Concern_Level to Low/Medium/High if possible."""
+    """Normalize Concern_Level to Low/Medium/High and numeric mapping."""
     s = (val or "").strip()
     if not s:
         return s
@@ -66,6 +67,14 @@ def norm_concern(val: str):
     return s  # leave as-is if something custom
 
 def main():
+    """
+    Loads yaml and reads csv file with mental health responses.
+    creates unique doc_ids if absent.
+    Chunks long responses into smaller snippets.
+    Writes out two jsonl files: corpus(kb_snippets.jsonl) and metadata(kb_meta.jsonl).
+        1) corpus jsonl: {"doc_id":..., "text":...}
+        2) metadata jsonl: {"doc_id":..., "source":..., "intent":..., "concern":..., "tags":..., "text":...}
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("-c", "--config", default="configs/data.yaml")
     ap.add_argument("--csv", help="Override CSV path (else uses paths.processed_csv)")

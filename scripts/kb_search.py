@@ -8,7 +8,7 @@ import yaml
 import faiss
 from sentence_transformers import SentenceTransformer
 
-
+# Loads metadata jsonl into a list of dicts
 def load_meta(path):
     meta = []
     with open(path, "r", encoding="utf-8") as f:
@@ -21,8 +21,11 @@ def load_meta(path):
 
 def search(index, encoder, meta, query, intents=None, concern=None, topk=50, keep=5):
     """
-    intents: optional set/list of strings (soft OR filter, substring match)
-    concern: optional string (exact match after lowering), e.g. 'High'
+    Encodes query text using SenteceTransformer encoder and searches FAISS index for top-k nearest neighbors.
+    Sort filtering:
+        1. intents: optional set/list of strings (soft OR filter, substring match)
+        2. concern: optional string (exact match after lowering), e.g. 'High'
+    Returns up to 'keep' results after filtering.
     """
     # normalize filters
     intents = {i.lower() for i in (intents or [])}
@@ -58,6 +61,9 @@ def search(index, encoder, meta, query, intents=None, concern=None, topk=50, kee
 
 
 def main():
+    """
+    CLI tool for ad-hoc KB searches using FAISS + Sentence-Transformers.
+    """
     ap = argparse.ArgumentParser(
         description="Search the KB (FAISS) with a new post and optional soft filters."
     )
